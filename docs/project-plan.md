@@ -1,5 +1,7 @@
 # Project Plan
 
+> 이 문서는 배경·목표·Phase 로드맵·개발 원칙 등 **전략 수준**을 다룬다. 상세 기능/데이터 요구사항은 [requirements.md](./requirements.md) 참고.
+
 ## 1. 프로젝트 개요
 
 ### 프로젝트명

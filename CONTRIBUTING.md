@@ -44,8 +44,7 @@
 
 ## 학사/졸업요건 데이터 작업 시 유의사항
 
-- project-plan.md 7번 원칙: AI를 데이터 추출 보조 도구로 쓸 수 있으나, **AI가 추출·정리한 데이터는 반드시 원본 자료와 사람이 대조 검증한 뒤에만 판정 로직에 반영**한다
-- 데이터(학사 규정/교육과정)와 판정 로직은 분리해서 설계한다 (데이터 모델은 회의 결정 후 별도 공유)
+- AI 활용·데이터/로직 분리 원칙은 [project-plan.md](docs/project-plan.md) 7번을 따른다 (데이터 모델은 회의 결정 후 별도 공유)
 
 ## 코드 스타일 / 개발 환경
 
@@ -55,4 +54,5 @@
 
 - 정기회의: 매주 목요일 수업 이후 오프라인 (시험 주차·전 주차 제외)
 - 회의록은 `docs/meetings/YYYY-MM-DD.md` 형식으로 작성, 양식은 `docs/meetings/template.md` 참고
-- 조사/설계 초안은 `docs/drafts/`에 모은다. 이 폴더는 `.gitignore`에 등록되어 있어 **repo에 push되지 않는다** — 대신 Notion 등에 남기고, 결정된 내용만 project-plan.md/requirements.md 등 공식 문서에 반영한다
+- `project-plan.md`(전략: 배경·목표·Phase 로드맵·개발 원칙)와 `requirements.md`(상세 기능/데이터 요구사항)는 역할이 다르다. 같은 내용을 양쪽에 다시 쓰지 말고, 한쪽에만 쓰고 다른 쪽에서는 링크로 참조한다
+- 조사/설계 초안은 repo가 아니라 Notion에서 관리한다. 결정된 내용만 project-plan.md/requirements.md 등 공식 문서에 반영한다

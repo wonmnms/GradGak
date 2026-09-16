@@ -8,7 +8,11 @@
 
 본 프로젝트는 이러한 정보를 바탕으로 학생의 현재 졸업 진행 상황을 자동으로 분석하고, 향후 수강계획을 세우는 데 도움을 주는 것을 목표로 한다.
 
+> 배경·목표 상세는 [docs/project-plan.md](docs/project-plan.md) 참고.
+
 ## 주요 기능
+
+> 아래는 요약이며, 최신 Phase별 상세 범위는 [docs/project-plan.md](docs/project-plan.md) 5번이 기준이다. 두 문서가 어긋나면 project-plan.md를 따른다.
 
 ### MVP
 
@@ -62,6 +66,7 @@
 ```text
 project-root/
 ├── README.md
+├── CONTRIBUTING.md
 ├── docs/
 │   ├── project-plan.md
 │   ├── requirements.md
