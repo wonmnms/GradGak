@@ -1,4 +1,4 @@
-# 프로젝트명 미정 - 광운대학교 졸업요건 분석 및 수강계획 시뮬레이터
+# GradGak(졸업각) - 광운대학교 졸업요건 분석 및 수강계획 시뮬레이터
 
 광운대학교 학생의 입학년도, 학과, 이수과목 등의 정보를 바탕으로 졸업요건 충족 여부를 분석하고, 부족한 요건과 향후 수강계획을 확인할 수 있는 웹 서비스이다.
 
@@ -34,13 +34,11 @@
 
 ## 기술 스택
 
-> 미정. 임시로 적어놓은 스택.
+> 2차 회의(2026-09-17)에서 Frontend를 제외한 나머지 스택을 확정했다. Frontend는 아직 미정(담당자 재량, Action Item으로 후보 조사 중).
 
 ### Frontend
 
-- HTML
-- CSS
-- JavaScript
+- 미정 (담당자 재량)
 
 ### Backend
 
@@ -50,16 +48,21 @@
 ### Database
 
 - PostgreSQL
+- SQLAlchemy / Alembic (ORM·마이그레이션)
 
 ### Data Processing
 
-- Python
-- BeautifulSoup / Playwright
-- Pandas
+- httpx / BeautifulSoup (HTML 수집)
+- pdfplumber / PyMuPDF (PDF 수집)
+- Playwright (로그인이 필요한 경우에만 조건부 사용)
 
-### Optimization
+### Test
 
-- OR-Tools
+- pytest (백엔드 판정 로직)
+
+### 최적화
+
+- Phase 3에서 검토 (규칙 기반 필터링 우선, OR-Tools는 현재 스택에 미포함)
 
 ## 프로젝트 구조
 
@@ -78,13 +81,13 @@ project-root/
 
 ## 팀원
 
-| 이름   | 역할 |
-| ------ | ---- |
-| 최원용 | TBD  |
-| 김남주 | TBD  |
-| 박준영 | TBD  |
-| 김세연 | TBD  |
-| 배준경 | TBD  |
+| 이름   | 역할     |
+| ------ | -------- |
+| 최원용 | Backend  |
+| 김남주 | DB       |
+| 박준영 | Backend  |
+| 김세연 | Frontend |
+| 배준경 | Frontend |
 
 ## 개발 환경
 
