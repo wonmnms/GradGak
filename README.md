@@ -88,7 +88,29 @@ project-root/
 
 ## 개발 환경
 
-개발 환경 및 실행 방법은 프로젝트의 기술 스택이 확정된 후 추가한다.
+### 백엔드 + DB (Docker Compose)
+
+백엔드(FastAPI)와 PostgreSQL은 docker-compose로 로컬 실행한다.
+(프론트엔드는 기술 스택 미정이라 컨테이너에 포함하지 않음 — 결정되면 별도로 안내)
+
+1. 저장소 루트의 `.env.example`을 복사해 `.env` 생성 (필요시 값 수정)
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. 컨테이너 실행
+
+   ```bash
+   docker-compose up --build
+   ```
+
+3. 정상 기동 확인: http://localhost:8000/health → `{"status": "ok"}`
+   (DB 연결까지 확인하려면 http://localhost:8000/health/db)
+
+4. 종료: `docker-compose down` (DB 데이터까지 삭제하려면 `docker-compose down -v`)
+
+> 백엔드 로컬(비-Docker) 실행, Alembic 마이그레이션 사용법 등은 ERD/스키마 확정 후 추가한다.
 
 ## License
 
