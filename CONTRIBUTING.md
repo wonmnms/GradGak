@@ -38,7 +38,7 @@
 
 - 작업 단위는 GitHub Issue로 등록하고, Project 보드에서 진행 상태(Todo / In Progress / Done 등)를 관리한다
 - 이슈 제목은 무엇을 할지 명확히 (예: "졸업요건 데이터 모델 구현", "이수과목 검색 UI")
-- 라벨 체계 (회의 안건 8번에서 확정)
+- 라벨 체계
   - type 라벨: 위 커밋 타입과 동일 (`feat`/`fix`/`docs`/`refactor`/`test`/`chore`) — 어떤 종류의 작업인지
   - 영역 라벨: `frontend`/`backend`/`db` — 어느 파트 작업인지
   - 이슈/PR에 type + 영역 라벨을 하나씩 붙이는 걸 기본으로 함
