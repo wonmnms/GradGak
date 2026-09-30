@@ -34,11 +34,15 @@
 
 ## 기술 스택
 
-> Frontend는 아직 미정(담당자 재량, 후보 조사 중). 나머지 스택은 확정.
+> 전체 스택 확정. (Frontend는 프론트 담당(김세연·배준경) 논의로 결정)
 
 ### Frontend
 
-- 미정 (담당자 재량)
+- React
+- Vite
+- TypeScript
+- CSS Modules (스타일)
+- React Router (화면 이동)
 
 ### Backend
 
@@ -94,7 +98,7 @@ project-root/
 ### 백엔드 + DB (Docker Compose)
 
 백엔드(FastAPI)와 PostgreSQL은 docker-compose로 로컬 실행한다.
-(프론트엔드는 기술 스택 미정이라 컨테이너에 포함하지 않음 — 결정되면 별도로 안내)
+(프론트엔드(React + Vite)는 컨테이너에 포함하지 않고 로컬에서 별도 실행 — 초기 세팅 후 실행 방법 추가 예정)
 
 1. 저장소 루트의 `.env.example`을 복사해 `.env` 생성 (필요시 값 수정)
 
