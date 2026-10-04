@@ -11,8 +11,8 @@
 - `docs/project-plan.md`: 전략(배경·목표·Phase 로드맵·개발 원칙)
 - `docs/requirements.md`: 상세 기능/데이터 요구사항 (현재 Phase 기준)
 - 위 두 문서에 같은 내용을 양쪽에 다시 쓰지 말 것 — 한쪽에만 쓰고 다른 쪽에서는 링크로 참조
-- `docs/meetings/YYYY-MM-DD.md`: 회의록. 양식은 `docs/meetings/template.md`. "Action Items"는 GitHub Issue로 만들기엔 작은 개인 준비 작업만 — 개발 작업은 Issue로 등록하고 링크만 남긴다
-- 조사/제안 초안: repo가 아니라 Notion(“오픈소스SW개발 - 작업초안” 페이지)에서 관리한다. 결정되거나 폐기되면 해당 Notion draft는 지우고, 결과는 공식 문서(project-plan.md/requirements.md 등)와 회의록 결정사항에 반영
+- 회의록: repo가 아니라 Notion [졸업각 팀 페이지](https://app.notion.com/p/3ddb38344e4680f4ad46f10a0e982c9f) 하위에서만 관리한다(repo에 커밋하지 않음). "Action Items"는 GitHub Issue로 만들기엔 작은 개인 준비 작업만 — 개발 작업은 Issue로 등록하고 링크만 남긴다
+- 조사/제안 초안: repo가 아니라 Notion(“오픈소스SW개발 - 작업초안” 페이지)에서 관리한다. 결정되거나 폐기되면 해당 Notion draft는 지우고, 결과는 공식 문서(project-plan.md/requirements.md 등)와 Notion 회의록 결정사항에 반영
 - `CONTRIBUTING.md`: 브랜치/커밋/PR 컨벤션
 
 ## AI 활용 원칙 (project-plan.md 7번과 동일)
