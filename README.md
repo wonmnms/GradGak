@@ -121,4 +121,4 @@ project-root/
 
 ## License
 
-프로젝트 라이선스는 팀 논의 후 결정한다.
+이 프로젝트는 [MIT License](LICENSE)를 따른다.
