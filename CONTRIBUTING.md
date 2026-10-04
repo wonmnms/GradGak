@@ -43,7 +43,7 @@
 | `test`     | 테스트 추가/수정                |
 | `chore`    | 빌드, 설정, 의존성 등 기타 변경 |
 
-예: `feat: 졸업요건 판정 API 초안 추가`, `docs: 2차 회의록 작성`
+예: `feat: 졸업요건 판정 API 초안 추가`, `docs: 요구사항 문서 갱신`
 
 ## Pull Request
 
@@ -75,6 +75,6 @@
 ## 회의 및 문서
 
 - 정기회의: 매주 목요일 수업 이후 오프라인 (시험 주차·전 주차 제외)
-- 회의록은 `docs/meetings/YYYY-MM-DD.md` 형식으로 작성, 양식은 `docs/meetings/template.md` 참고
+- 회의록은 repo가 아니라 Notion [졸업각 팀 페이지](https://app.notion.com/p/3ddb38344e4680f4ad46f10a0e982c9f) 하위에 `YYYY-MM-DD 정기회의 (N차 회의)` 제목으로 작성한다. Action Items에는 Issue로 만들기엔 작은 개인 준비 작업만 남기고, 개발 작업은 Issue로 등록해 링크만 남긴다
 - `project-plan.md`(전략: 배경·목표·Phase 로드맵·개발 원칙)와 `requirements.md`(상세 기능/데이터 요구사항)는 역할이 다르다. 같은 내용을 양쪽에 다시 쓰지 말고, 한쪽에만 쓰고 다른 쪽에서는 링크로 참조한다
 - 조사/설계 초안은 repo가 아니라 Notion에서 관리한다. 결정된 내용만 project-plan.md/requirements.md 등 공식 문서에 반영한다
