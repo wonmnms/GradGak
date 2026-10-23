@@ -70,7 +70,22 @@
 
 ## 코드 스타일 / 개발 환경
 
-기술 스택이 아직 확정 전이라 보류. 확정 후 언어별 린터·포매터, 로컬 실행 방법을 이 섹션에 채운다.
+실행 방법은 [README 개발 환경](README.md#개발-환경) 참고. 여기는 코드 스타일 규칙만 다룬다.
+
+### Backend (Python)
+
+- 린터·포매터: [ruff](https://docs.astral.sh/ruff/) (설정은 `backend/pyproject.toml`). PR 전에 `ruff check .`와 `ruff format .`를 실행한다
+- 디렉터리 역할 (`backend/app/`)
+  - `routers/`: API 엔드포인트. 요청/응답 처리만 하고 로직은 `services/`로
+  - `services/`: 비즈니스 로직(PDF 파싱, 과목 매칭, 졸업요건 판정). FastAPI에 의존하지 않게 작성해 단독으로 테스트할 수 있게 한다
+  - `schemas/`: API 요청/응답 Pydantic 스키마
+  - `models/`: SQLAlchemy ORM 모델
+  - `core/config.py`: 환경변수 기반 설정
+- 테스트: `backend/tests/`에 pytest로 작성
+
+### Frontend
+
+프론트엔드 초기 세팅(#20) 후 추가한다.
 
 ## 회의 및 문서
 
