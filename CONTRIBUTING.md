@@ -85,7 +85,7 @@
 
 ### Frontend
 
-프론트엔드 초기 세팅(#20) 후 추가한다.
+프론트엔드 초기 세팅([#20](https://github.com/wonmnms/GradGak/issues/20)) 후 추가한다.
 
 ## 회의 및 문서
 

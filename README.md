@@ -128,9 +128,9 @@ docker-compose exec backend ruff format .
 
 > 소스 코드(`backend/app`, `backend/tests`)는 컨테이너에 마운트되어 있어 수정하면 바로 반영된다. `requirements.txt`나 `pyproject.toml`을 바꿨다면 `docker-compose up --build`로 다시 빌드한다.
 >
-> CORS 허용 주소는 기본값이 Vite 개발 서버(`http://localhost:5173`)이며, 바꾸려면 backend 환경변수 `CORS_ORIGINS`(쉼표 구분)를 설정한다.
+> CORS 허용 주소는 기본값이 Vite 개발 서버(`http://localhost:5173`)이며, 바꾸려면 `.env`에 `CORS_ORIGINS`(쉼표 구분)를 설정한다.
 >
-> Alembic 마이그레이션 사용법은 #11에서 추가한다.
+> 백엔드 로컬(비-Docker) 실행, Alembic 마이그레이션 사용법은 추후 추가한다([#11](https://github.com/wonmnms/GradGak/issues/11)).
 
 ## License
 
