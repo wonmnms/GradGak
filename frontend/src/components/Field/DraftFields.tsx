@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { useDraft } from '../../context/useDraft';
+import { parseProgram } from '../../context/program';
 import type { DraftState } from '../../context/draftContext';
 import styles from './Field.module.css';
 
@@ -14,6 +15,8 @@ const fields: { key: keyof DraftState; label: string }[] = [
 export default function DraftFields() {
   const { draft, setDraftField } = useDraft();
   const baseId = useId();
+  const program = parseProgram(draft.program);
+  const invalidProgram = draft.program.trim() !== '' && program === null;
 
   return (
     <div>
@@ -22,14 +25,36 @@ export default function DraftFields() {
         return (
           <div className={styles.field} key={key}>
             <label htmlFor={id}>{label}</label>
-            <input
-              id={id}
-              className={styles.input}
-              type="text"
-              autoComplete="off"
-              value={draft[key]}
-              onChange={(e) => setDraftField(key, e.target.value)}
-            />
+            {key === 'program' ? (
+              <>
+                <select
+                  id={id}
+                  className={styles.input}
+                  value={program === 'engineering' ? '공학' : program === 'general' ? '일반' : ''}
+                  aria-invalid={invalidProgram || undefined}
+                  aria-describedby={invalidProgram ? id + '-error' : undefined}
+                  onChange={(e) => setDraftField('program', e.target.value)}
+                >
+                  <option value="">프로그램을 선택하세요</option>
+                  <option value="공학">공학</option>
+                  <option value="일반">일반</option>
+                </select>
+                {invalidProgram && (
+                  <p id={id + '-error'} role="alert">
+                    기존 프로그램 값을 확인할 수 없습니다. 다시 선택해 주세요.
+                  </p>
+                )}
+              </>
+            ) : (
+              <input
+                id={id}
+                className={styles.input}
+                type="text"
+                autoComplete="off"
+                value={draft[key]}
+                onChange={(e) => setDraftField(key, e.target.value)}
+              />
+            )}
           </div>
         );
       })}
