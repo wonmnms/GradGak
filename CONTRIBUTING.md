@@ -70,7 +70,20 @@
 
 ## 코드 스타일 / 개발 환경
 
-기술 스택이 아직 확정 전이라 보류. 확정 후 언어별 린터·포매터, 로컬 실행 방법을 이 섹션에 채운다.
+### 프론트엔드
+
+- React + Vite + TypeScript, CSS Modules, React Router를 사용한다.
+- Node.js 24 LTS를 권장한다. 설치와 실행은 README의 프론트엔드 절을 따른다.
+- 컴포넌트 파일은 PascalCase.tsx, 스타일은 같은 폴더의 *.module.css에 둔다.
+- 공통 디자인 변수는 src/styles/variables.css, 전역 기본 스타일은 global.css에서 관리한다.
+- ESLint와 Prettier를 사용한다. 2칸 들여쓰기, 작은따옴표, 세미콜론, LF 줄바꿈을 적용한다.
+- PR 전 frontend에서 npm run lint, npm run build, npm run format:check를 통과시킨다.
+- package-lock.json을 커밋하고 node_modules, dist, .env는 커밋하지 않는다. VITE_ 환경변수에는 비밀정보를 넣지 않는다.
+- API 명세(#9) 확정 전 임시 UI 상태를 서버 DTO로 간주하지 않는다. API 타입과 클라이언트는 #22에서 별도로 합의한다.
+
+### 백엔드
+
+백엔드 코드 스타일·마이그레이션 규칙은 관련 설정 및 문서 확정 후 별도 반영한다.
 
 ## 회의 및 문서
 

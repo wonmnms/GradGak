@@ -94,10 +94,27 @@ project-root/
 
 ## 개발 환경
 
+### 프론트엔드 (React + Vite)
+
+Node.js 24 LTS 권장 (최소 22.13.0). 저장소 루트에서:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+http://localhost:5173 에서 확인한다. 기본 경로는 /upload이며 /review, /results로 연결된다.
+현재는 공통 화면 틀과 라우팅만 구현되어 있고 실제 PDF 파싱·졸업 판정 API는 연결하지 않았다.
+입력 상태는 메모리에만 보관되어 화면 이동 시 유지되고 새로고침 시 초기화된다.
+
+검증: `npm run lint`, `npm run build`, `npm run format:check`.
+폴더 구조·협업 경계·후속 작업은 [frontend/README.md](frontend/README.md)를 참고한다.
+
 ### 백엔드 + DB (Docker Compose)
 
 백엔드(FastAPI)와 PostgreSQL은 docker-compose로 로컬 실행한다.
-(프론트엔드(React + Vite)는 컨테이너에 포함하지 않고 로컬에서 별도 실행 — 초기 세팅 후 실행 방법 추가 예정)
+(프론트엔드(React + Vite)는 컨테이너에 포함하지 않고 위 방법으로 별도 실행)
 
 1. 저장소 루트의 `.env.example`을 복사해 `.env` 생성 (필요시 값 수정)
 
