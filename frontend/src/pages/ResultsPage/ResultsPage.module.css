@@ -1,0 +1,286 @@
+.page {
+  --result-success: #86d8b1;
+  --result-review: #ffd98a;
+  font-variant-numeric: tabular-nums;
+}
+.intro {
+  margin-bottom: 24px;
+}
+.eyebrow {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+.intro h1 {
+  font-size: clamp(24px, 4vw, 32px);
+  letter-spacing: -0.04em;
+  word-break: keep-all;
+  margin-bottom: 12px;
+}
+.description {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+.demoNotice {
+  background: var(--color-warning-bg);
+  border-left: 3px solid var(--color-warning-text);
+  padding: 16px;
+  margin-bottom: 28px;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.demoNotice strong {
+  color: var(--color-warning-text);
+  font-size: 13px;
+}
+.demoNotice p {
+  color: var(--color-warning-text);
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.toolbar h2,
+.missing > h2 {
+  font-size: 20px;
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.controls select {
+  font: inherit;
+  font-size: 13px;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+.hint {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  margin: 12px 0 20px;
+}
+.grid,
+.missingGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 20px;
+}
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 24px;
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cardHeader h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.badge {
+  font-size: 11px;
+  border: 1px solid currentColor;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.met {
+  color: var(--result-success);
+}
+.unmet {
+  color: var(--color-text);
+}
+.review {
+  color: var(--result-review);
+}
+.total {
+  margin: 24px 0 12px;
+}
+.total strong {
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+.total span {
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+.progress {
+  height: 6px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+  border-radius: 6px;
+}
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+}
+.progressLabels {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  margin-top: 10px;
+}
+.reviewNote {
+  color: var(--result-review);
+  font-size: 12px;
+  margin-top: 12px;
+}
+.creditTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 24px;
+}
+.creditTable caption {
+  text-align: left;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding-bottom: 8px;
+}
+.creditTable th,
+.creditTable td {
+  padding: 10px 3px;
+  text-align: right;
+  border-bottom: 1px solid var(--color-border);
+}
+.creditTable thead th {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.creditTable th:first-child {
+  text-align: left;
+}
+.creditTable tbody th {
+  font-weight: 500;
+}
+.creditTable td:last-child {
+  white-space: nowrap;
+  font-size: 11px;
+}
+.remaining {
+  font-weight: 600;
+}
+.subheading {
+  font-size: 13px;
+  margin: 28px 0 8px;
+}
+.requirements {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.requirements li {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.requirementValue {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.detail {
+  color: var(--color-text-muted);
+}
+.missing {
+  margin: 36px 0;
+}
+.missingGrid section {
+  min-width: 0;
+}
+.missingGrid h3 {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 0;
+  color: var(--color-text-muted);
+}
+.courseList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.courseList li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border);
+  padding: 16px 0;
+}
+.courseList strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.courseList p {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+}
+.courseList li > span {
+  white-space: nowrap;
+  font-size: 12px;
+  background: var(--color-surface-2);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.empty {
+  color: var(--result-success);
+  font-size: 13px;
+  padding: 16px 0;
+}
+.footnote {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin: 16px 0 0;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 24px 0;
+  border-top: 1px solid var(--color-border);
+}
+.actions h2 {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+.actions p {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 0;
+}

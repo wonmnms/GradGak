@@ -105,7 +105,7 @@ npm run dev
 ```
 
 http://localhost:5173 에서 확인한다. 기본 경로는 /upload이며 /review, /results로 연결된다.
-현재는 공통 화면 틀과 라우팅만 구현되어 있고 실제 PDF 파싱·졸업 판정 API는 연결하지 않았다.
+현재는 공통 화면 틀·라우팅과 결과 화면의 가상 데이터 UI를 구현했으며, 실제 PDF 파싱·졸업 판정 API는 연결하지 않았다.
 입력 상태는 메모리에만 보관되어 화면 이동 시 유지되고 새로고침 시 초기화된다.
 
 검증: `npm run lint`, `npm run build`, `npm run format:check`.
