@@ -1,100 +1,112 @@
-import type { MockScenario, Program, ProgramResult, ResultStatus } from './result.types';
+import type {
+  CommonRequirement,
+  EvaluationResult,
+  MockScenario,
+  Program,
+  ProgramResult,
+  SubMajor,
+} from './result.types';
 
-// 전부 가상 수치입니다. 학교의 실제 졸업 규칙이나 사용자 입력으로 계산하지 않습니다.
-function makeProgram(program: Program, scenario: ResultStatus): ProgramResult {
-  const completed = scenario === 'met';
-  const needsReview = scenario === 'review';
-  const title = program === 'engineering' ? '공학 프로그램' : '일반 프로그램';
+// 숫자·과목은 화면 개발용 가상 데이터입니다. 실제 규칙 계산은 서버가 담당합니다.
+function makeProgram(program: Program, scenario: MockScenario): ProgramResult {
+  const allCreditsMet =
+    ['met', 'review', 'thesis-unmet'].includes(scenario) ||
+    (scenario === 'program-difference' && program === 'general');
+  const onlyMajorMissing = scenario === 'program-difference' && program === 'engineering';
+  const majorEarned = allCreditsMet ? 18 : 12;
+  const otherEarned = allCreditsMet || onlyMajorMissing ? 112 : 92;
+  const earned = majorEarned + otherEarned;
   return {
     program,
-    title,
-    status: scenario,
+    status: allCreditsMet ? 'met' : 'unmet',
     total: {
-      id: 'total',
-      label: '총학점',
       required: 130,
-      earned: completed ? 130 : 104,
-      remaining: completed ? 0 : 26,
-      status: completed ? 'met' : needsReview ? 'review' : 'unmet',
+      earned,
+      remaining: 130 - earned,
+      status: allCreditsMet ? 'met' : 'unmet',
     },
     categories: [
       {
-        id: 'major',
-        label: '전공',
-        required: 60,
-        earned: completed ? 60 : 48,
-        remaining: completed ? 0 : 12,
-        status: completed ? 'met' : needsReview ? 'review' : 'unmet',
+        id: 'major_required',
+        label: '전공필수',
+        required: 18,
+        earned: majorEarned,
+        remaining: 18 - majorEarned,
+        status: allCreditsMet ? 'met' : 'unmet',
       },
       {
-        id: 'general',
-        label: '교양',
-        required: 40,
-        earned: completed ? 40 : 36,
-        remaining: completed ? 0 : 4,
-        status: completed ? 'met' : 'unmet',
-      },
-      {
-        id: 'other',
-        label: '기타',
-        required: 30,
-        earned: completed ? 30 : 20,
-        remaining: completed ? 0 : 10,
-        status: completed ? 'met' : 'unmet',
+        id: 'other_credits',
+        label: '기타 학점(가상)',
+        required: 112,
+        earned: otherEarned,
+        remaining: 112 - otherEarned,
+        status: otherEarned === 112 ? 'met' : 'unmet',
       },
     ],
-    specialRequirements: [
-      {
-        id: 'sub-major',
-        label: '세부전공필수',
-        status: completed ? 'met' : 'unmet',
-        detail: completed ? '5 / 5과목' : '3 / 5과목',
-      },
-      {
-        id: 'thesis',
-        label: '졸업논문·작품',
-        status: completed ? 'met' : needsReview ? 'review' : 'unmet',
-      },
-      { id: 'topcit', label: 'TOPCIT 응시', status: 'met' },
-      ...(program === 'engineering'
+    // 캡스톤 요건의 소속은 명세의 열린 질문입니다. 임의로 추가하지 않습니다.
+    course_groups: [],
+    missing_required_courses:
+      scenario === 'unmet'
         ? [
             {
-              id: 'engineering-extra',
-              label: '공학 추가요건 A',
-              status: completed ? ('met' as const) : ('unmet' as const),
+              course_code: 'MOCK-REQUIRED-A',
+              name: '가상 필수과목 A',
+              credits: 3,
+              category: '전공필수',
             },
           ]
-        : []),
-    ],
-    missingCourses: completed
-      ? []
-      : [
-          { id: 'required-a', name: '필수과목 A', credit: 3, category: '전공필수 · 가상 과목' },
-          ...(program === 'engineering'
-            ? [
-                {
-                  id: 'required-b',
-                  name: '필수과목 B',
-                  credit: 3,
-                  category: '공학필수 · 가상 과목',
-                },
-              ]
-            : []),
-        ],
+        : [],
   };
 }
-export function getMockResults(scenario: MockScenario): ProgramResult[] {
-  if (scenario === 'program-difference') {
-    return [makeProgram('engineering', 'unmet'), makeProgram('general', 'met')];
+export function getMockResults(
+  scenario: MockScenario,
+  program: Program,
+  subMajor: SubMajor,
+): EvaluationResult {
+  const commonRequirements: CommonRequirement[] = [];
+  if (subMajor === 'ai') {
+    const completedCount = scenario === 'unmet' ? 1 : 3;
+    commonRequirements.push({
+      id: 'sub_major_required',
+      label: '세부전공필수',
+      status: completedCount >= 3 ? 'met' : 'unmet',
+      required_count: 3,
+      completed_count: completedCount,
+      courses: ['A', 'B', 'C', 'D', 'E'].map((name, index) => ({
+        course_code: 'MOCK-AI-' + name,
+        name: '가상 선택과목 ' + name,
+        completed: index < completedCount,
+      })),
+    });
   }
-  if (scenario === 'thesis-unmet') {
-    return [makeProgram('engineering', 'met'), makeProgram('general', 'met')].map((result) => ({
-      ...result,
-      status: 'unmet',
-      specialRequirements: result.specialRequirements.map((item) =>
-        item.id === 'thesis' ? { ...item, status: 'unmet' } : item,
-      ),
-    }));
-  }
-  return [makeProgram('engineering', scenario), makeProgram('general', scenario)];
+  commonRequirements.push(
+    {
+      id: 'thesis',
+      label: "졸업논문(작품) '가' 판정",
+      status: scenario === 'unmet' || scenario === 'thesis-unmet' ? 'unmet' : 'met',
+    },
+    { id: 'topcit', label: 'TOPCIT 응시', status: 'met' },
+  );
+  const programs: Program[] = program === 'engineering' ? ['engineering', 'general'] : ['general'];
+  const programResults = programs.map((value) => makeProgram(value, scenario));
+  return {
+    // 가상 응답의 일관성만 유지하는 fixture 구성입니다. 실제 학사 판정 함수가 아닙니다.
+    graduation_status:
+      commonRequirements.every((item) => item.status === 'met') &&
+      programResults.every((item) => item.status === 'met')
+        ? 'met'
+        : 'unmet',
+    common_requirements: commonRequirements,
+    program_results: programResults,
+    unmatched_courses:
+      scenario === 'review'
+        ? [
+            {
+              index: 7,
+              name: '매칭되지 않은 가상 과목',
+              reason: '과목 데이터에서 찾지 못했습니다.',
+            },
+          ]
+        : [],
+  };
 }
