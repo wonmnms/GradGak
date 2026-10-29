@@ -133,7 +133,21 @@ http://localhost:5173 에서 확인한다. 기본 경로는 /upload이며 /revie
 
 4. 종료: `docker-compose down` (DB 데이터까지 삭제하려면 `docker-compose down -v`)
 
-> 백엔드 로컬(비-Docker) 실행, Alembic 마이그레이션 사용법 등은 ERD/스키마 확정 후 추가한다.
+### 백엔드 테스트·린트
+
+컨테이너가 실행 중인 상태에서:
+
+```bash
+docker-compose exec backend pytest
+docker-compose exec backend ruff check .
+docker-compose exec backend ruff format .
+```
+
+> 소스 코드(`backend/app`, `backend/tests`)는 컨테이너에 마운트되어 있어 수정하면 바로 반영된다. `requirements.txt`나 `pyproject.toml`을 바꿨다면 `docker-compose up --build`로 다시 빌드한다.
+>
+> CORS 허용 주소는 기본값이 Vite 개발 서버(`http://localhost:5173`)이며, 바꾸려면 `.env`에 `CORS_ORIGINS`(쉼표 구분)를 설정한다.
+>
+> 백엔드 로컬(비-Docker) 실행, Alembic 마이그레이션 사용법은 추후 추가한다([#11](https://github.com/wonmnms/GradGak/issues/11)).
 
 ## License
 

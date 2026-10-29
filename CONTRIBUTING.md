@@ -70,6 +70,8 @@
 
 ## 코드 스타일 / 개발 환경
 
+실행 방법은 [README 개발 환경](README.md#개발-환경) 참고. 여기는 코드 스타일 규칙만 다룬다.
+
 ### 프론트엔드
 
 - React + Vite + TypeScript, CSS Modules, React Router를 사용한다.
@@ -83,7 +85,15 @@
 
 ### 백엔드
 
-백엔드 코드 스타일·마이그레이션 규칙은 관련 설정 및 문서 확정 후 별도 반영한다.
+- 린터·포매터: [ruff](https://docs.astral.sh/ruff/) (설정은 `backend/pyproject.toml`). PR 전에 `ruff check .`와 `ruff format .`를 실행한다
+- 디렉터리 역할 (`backend/app/`)
+  - `routers/`: API 엔드포인트. 요청/응답 처리만 하고 로직은 `services/`로
+  - `services/`: 비즈니스 로직(PDF 파싱, 과목 매칭, 졸업요건 판정). FastAPI에 의존하지 않게 작성해 단독으로 테스트할 수 있게 한다
+  - `schemas/`: API 요청/응답 Pydantic 스키마
+  - `models/`: SQLAlchemy ORM 모델
+  - `core/config.py`: 환경변수 기반 설정
+- 테스트: `backend/tests/`에 pytest로 작성
+- DB 마이그레이션(Alembic) 규칙은 [#11](https://github.com/wonmnms/GradGak/issues/11)에서 추가한다
 
 ## 회의 및 문서
 
