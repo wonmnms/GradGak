@@ -72,7 +72,18 @@
 
 실행 방법은 [README 개발 환경](README.md#개발-환경) 참고. 여기는 코드 스타일 규칙만 다룬다.
 
-### Backend (Python)
+### 프론트엔드
+
+- React + Vite + TypeScript, CSS Modules, React Router를 사용한다.
+- Node.js 24 LTS를 권장한다. 설치와 실행은 README의 프론트엔드 절을 따른다.
+- 컴포넌트 파일은 PascalCase.tsx, 스타일은 같은 폴더의 *.module.css에 둔다.
+- 공통 디자인 변수는 src/styles/variables.css, 전역 기본 스타일은 global.css에서 관리한다.
+- ESLint와 Prettier를 사용한다. 2칸 들여쓰기, 작은따옴표, 세미콜론, LF 줄바꿈을 적용한다.
+- PR 전 frontend에서 npm run lint, npm run build, npm run format:check를 통과시킨다.
+- package-lock.json을 커밋하고 node_modules, dist, .env는 커밋하지 않는다. VITE_ 환경변수에는 비밀정보를 넣지 않는다.
+- API 명세(#9) 확정 전 임시 UI 상태를 서버 DTO로 간주하지 않는다. API 타입과 클라이언트는 #22에서 별도로 합의한다.
+
+### 백엔드
 
 - 린터·포매터: [ruff](https://docs.astral.sh/ruff/) (설정은 `backend/pyproject.toml`). PR 전에 `ruff check .`와 `ruff format .`를 실행한다
 - 디렉터리 역할 (`backend/app/`)
@@ -82,10 +93,7 @@
   - `models/`: SQLAlchemy ORM 모델
   - `core/config.py`: 환경변수 기반 설정
 - 테스트: `backend/tests/`에 pytest로 작성
-
-### Frontend
-
-프론트엔드 초기 세팅([#20](https://github.com/wonmnms/GradGak/issues/20)) 후 추가한다.
+- DB 마이그레이션(Alembic) 규칙은 [#11](https://github.com/wonmnms/GradGak/issues/11)에서 추가한다
 
 ## 회의 및 문서
 
