@@ -76,7 +76,8 @@ project-root/
 ├── CONTRIBUTING.md
 ├── docs/
 │   ├── project-plan.md
-│   └── requirements.md
+│   ├── requirements.md
+│   └── api-spec.md
 ├── frontend/
 ├── backend/
 └── ...
