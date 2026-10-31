@@ -148,7 +148,33 @@ docker-compose exec backend ruff format .
 >
 > CORS 허용 주소는 기본값이 Vite 개발 서버(`http://localhost:5173`)이며, 바꾸려면 `.env`에 `CORS_ORIGINS`(쉼표 구분)를 설정한다.
 >
-> 백엔드 로컬(비-Docker) 실행, Alembic 마이그레이션 사용법은 추후 추가한다([#11](https://github.com/wonmnms/GradGak/issues/11)).
+### 백엔드 로컬 테스트 (Python 3.12)
+
+Docker 없이 테스트하려면 저장소 루트에서 가상환경을 만든다. 아래는 PowerShell 기준이다.
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+cd backend
+..\.venv\Scripts\python.exe -m pytest
+..\.venv\Scripts\python.exe -m ruff check .
+..\.venv\Scripts\python.exe -m ruff format --check .
+```
+
+테스트와 PDF 파싱 API는 DB 연결 없이 실행할 수 있다. `/health/db` 확인에는 PostgreSQL이 필요하다.
+API 서버는 `backend`에서 `..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload`로 실행하며, 요청 형식은 `/docs`에서 확인한다.
+Alembic 마이그레이션 사용법은 추후 추가한다([#11](https://github.com/wonmnms/GradGak/issues/11)).
+
+### KLAS PDF 파서 검증 상태
+
+`POST /transcripts/parse`는 KLAS 이수내역의 학기별 구획과 과목 표를 읽고, 페이지 간 연속·반복 헤더를 처리한다.
+빈 성적은 `null`, 재수강 여부는 명시된 표시로 반환하며 `(삭제)`가 붙은 성적과 F·NP도 원문대로 보존한다.
+텍스트를 읽을 수 없는 PDF는 OCR 없이 `NO_TEXT_LAYER`로 안내한다.
+
+제공된 실제 변환본과 직접인쇄본은 로컬에서만 검증한다. PDF와 과목별 기대·추출 JSON은 저장소에 포함하지 않는다.
+공개 테스트는 가상의 과목과 성적으로 만든 합성 자료를 사용하고, 실제 샘플 검증은 환경변수로 명시적으로 실행한다.
+지원 구조와 로컬 검증 방법은 [파서 테스트 안내](backend/tests/README.md), 요청·응답은 [API 명세](docs/api-spec.md#post-transcriptsparse)를 참고한다.
+검증한 저장 형식과 다른 PDF는 별도 확인이 필요하다.
 
 ## License
 
