@@ -176,6 +176,12 @@ Alembic 마이그레이션 사용법은 추후 추가한다([#11](https://github
 지원 구조와 로컬 검증 방법은 [파서 테스트 안내](backend/tests/README.md), 요청·응답은 [API 명세](docs/api-spec.md#post-transcriptsparse)를 참고한다.
 검증한 저장 형식과 다른 PDF는 별도 확인이 필요하다.
 
+### 과목 매칭 서비스 (#16)
+
+PDF 파싱 결과의 학수번호·이름을 카탈로그와 연결하는 독립 서비스를 구현했다.
+현재 DB 모델·과목 시드(#11·#12)가 준비되지 않아 가상 데이터로 검증하며 새 HTTP API는 추가하지 않는다.
+별칭·대체 관계 후보, 미매칭·모호함·중복 결과와 DB 연동 지점은 [과목 매칭 안내](docs/course-matching.md)를 참고한다.
+
 ## License
 
 이 프로젝트는 [MIT License](LICENSE)를 따른다.
