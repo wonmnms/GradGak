@@ -33,4 +33,8 @@ class RequirementCategory(Base):
 
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    parent_category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("requirement_categories.category_id"), nullable=True
+    )
+
     graduation_requirement: Mapped["GraduationRequirement"] = relationship("GraduationRequirement")
