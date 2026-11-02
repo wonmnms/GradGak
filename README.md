@@ -148,7 +148,7 @@ docker-compose exec backend ruff format .
 >
 > CORS 허용 주소는 기본값이 Vite 개발 서버(`http://localhost:5173`)이며, 바꾸려면 `.env`에 `CORS_ORIGINS`(쉼표 구분)를 설정한다.
 >
-> 백엔드 로컬(비-Docker) 실행, Alembic 마이그레이션 사용법은 추후 추가한다([#11](https://github.com/wonmnms/GradGak/issues/11)).
+> DB 테이블 생성, Alembic 마이그레이션, 가상 데이터 및 테스트 실행 방법은 [DB 개발 가이드](docs/db-setup.md)를 참고한다. 백엔드 로컬(비-Docker) 실행 방법은 추후 추가한다.
 
 ## License
 
