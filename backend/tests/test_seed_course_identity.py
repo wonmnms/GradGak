@@ -45,7 +45,7 @@ def test_different_sources_reuse_same_course(identity_data):
 
 def test_known_code_candidate_is_reused(identity_data):
     session, sources, token = identity_data
-    course = Course(name=token, department="TEST", course_code=token, credits=3)
+    course = Course(name=token, department="TEST", course_code=token[:20], credits=3)
     session.add(course)
     session.flush()
     assert (
