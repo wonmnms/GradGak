@@ -425,8 +425,10 @@ def test_invalid_catalog_references_fail_instead_of_becoming_unmatched_success(c
 def test_repository_is_loaded_once_for_the_whole_batch():
     repository = Mock(spec=CourseCatalogRepository)
     repository.load_snapshot.return_value = snapshot(master())
-    result = match_courses_from_repository([taken(), taken(term="2")], repository)
-    repository.load_snapshot.assert_called_once_with()
+    result = match_courses_from_repository(
+        [taken(), taken(term="2")], repository, admission_year=2024
+    )
+    repository.load_snapshot.assert_called_once_with(admission_year=2024)
     assert len(result.matched) == 2
 
 
@@ -434,8 +436,31 @@ def test_repository_failure_is_not_replaced_with_unmatched_courses():
     repository = Mock(spec=CourseCatalogRepository)
     repository.load_snapshot.side_effect = RuntimeError("Synthetic catalog unavailable")
     with pytest.raises(RuntimeError, match="Synthetic catalog unavailable"):
-        match_courses_from_repository([taken()], repository)
-    repository.load_snapshot.assert_called_once_with()
+        match_courses_from_repository([taken()], repository, admission_year=2024)
+    repository.load_snapshot.assert_called_once_with(admission_year=2024)
+
+
+def test_repository_uses_requested_admission_year_for_each_call_without_caching():
+    catalogs = {
+        2024: snapshot(master("fake-curriculum-2024")),
+        2025: snapshot(master("fake-curriculum-2025")),
+    }
+    requested_years = []
+
+    class FakeCatalogRepository:
+        def load_snapshot(self, admission_year: int) -> CourseCatalogSnapshot:
+            requested_years.append(admission_year)
+            return catalogs[admission_year]
+
+    repository = FakeCatalogRepository()
+    originals = [taken(year=2031)]
+    first = match_courses_from_repository(originals, repository, admission_year=2024)
+    second = match_courses_from_repository(originals, repository, admission_year=2025)
+
+    assert requested_years == [2024, 2025]
+    assert first.matched[0].matched_course.course_id == "fake-curriculum-2024"
+    assert second.matched[0].matched_course.course_id == "fake-curriculum-2025"
+    assert first.matched[0].original.year == second.matched[0].original.year == 2031
 
 
 def test_45_fictional_courses_without_codes_match_current_names_and_verified_aliases():
