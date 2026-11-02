@@ -4,12 +4,12 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models import (
-    Course,
     CourseGroupRequirement,
     CourseGroupRequirementCourse,
     RequirementCategory,
     SourceDocument,
 )
+from app.seed_courses import ensure_course
 from app.seed_official_credits import (
     REVIEW_DATE,
     SOURCE_URL,
@@ -44,11 +44,8 @@ def seed_verified_engineering_rules(session):
     ).scalar_one()
     course_names = [name for _, name in REQUIRED_COURSES] + list(CAPSTONE_COURSES)
     courses = {
-        name: ensure_record(
-            session,
-            Course,
-            {"name": name, "source_id": source.source_id},
-            {},
+        name: ensure_course(
+            session, name=name, department="소프트웨어학부", source_id=source.source_id
         )
         for name in course_names
     }

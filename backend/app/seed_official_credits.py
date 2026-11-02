@@ -1,4 +1,4 @@
-"""사용자가 원본 대조한 2024학번 학점표만 적재한다. 전체 졸업규칙은 아니다."""
+"""원본 대조가 끝난 2024학번 학점표만 적재한다. 전체 졸업규칙은 아니다."""
 
 from datetime import date
 
@@ -55,7 +55,7 @@ def seed_verified_credit_rules(session):
         {"url": SOURCE_URL, "retrieved_on": REVIEW_DATE},
         {
             "title": "공학/일반 졸업이수요건 안내(2026ver)",
-            "note": "2024학번 학점표만 사용자 원본 대조 완료. 전체 규칙 검증 완료가 아님.",
+            "note": "2024학번 학점표만 김남주 원본 대조 완료. 전체 규칙 검증 완료가 아님.",
         },
     )
     requirements = []
@@ -83,7 +83,7 @@ def seed_verified_credit_rules(session):
                     "locator": f"{'공학' if program == 'engineering' else '일반'}프로그램 / "
                     "2024학번 입학자 행 (일반은 단일전공 기준)",
                     "review_status": "verified",
-                    "reviewer": "사용자 원본 대조 확인 (이 채팅)",
+                    "reviewer": "김남주",
                     "reviewed_on": REVIEW_DATE,
                     "note": "검증 범위는 총학점·이번에 입력한 영역별 학점 값만 해당. "
                     "공학 선택 시 일반 요건도 별도 적용해야 함. 필수과목, 공통 요건, "

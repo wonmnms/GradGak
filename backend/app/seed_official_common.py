@@ -35,7 +35,7 @@ def seed_verified_common_rules(session):
                     "expected_value": True,
                     "source_id": source.source_id,
                     "source_locator": "졸업요건 안내 / 공학·일반 공통 1~3번 중 졸업논문 및 TOPCIT",
-                    "reviewer": "사용자 원본 대조 확인 (이 채팅)",
+                    "reviewer": "김남주",
                     "reviewed_on": REVIEW_DATE,
                 },
             )

@@ -44,3 +44,7 @@ class CourseEquivalence(Base):
     )
 
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_documents.source_id"), nullable=True
+    )

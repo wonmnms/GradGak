@@ -1,4 +1,4 @@
-"""사용자 대조가 끝난 인공지능 세부전공필수 5과목 중 3과목 규칙만 적재한다."""
+"""원본 대조가 끝난 인공지능 세부전공필수 5과목 중 3과목 규칙만 적재한다."""
 
 from sqlalchemy import select
 
@@ -11,6 +11,7 @@ from app.models import (
     RequirementSource,
     SourceDocument,
 )
+from app.seed_courses import ensure_course
 from app.seed_official_credits import (
     REVIEW_DATE,
     SOURCE_URL,
@@ -34,16 +35,17 @@ def seed_verified_ai_group(session):
         {"url": CURRICULUM_URL, "retrieved_on": REVIEW_DATE},
         {
             "title": "광운대학교 소프트웨어학부 교육과정",
-            "note": "사용자가 5과목명과 각각 3학점을 원본 대조함. "
+            "note": "김남주가 5과목명과 각각 3학점을 원본 대조함. "
             "학수번호·이수구분·개설학기는 검증하지 않았으며 추정하지 않음.",
         },
     )
     courses = [
-        ensure_record(
+        ensure_course(
             session,
-            Course,
-            {"department": "소프트웨어학부", "name": name},
-            {"credits": 3, "source_id": curriculum_source.source_id},
+            name=name,
+            department="소프트웨어학부",
+            source_id=curriculum_source.source_id,
+            credits=3,
         )
         for name in AI_COURSES
     ]
@@ -79,7 +81,7 @@ def seed_verified_ai_group(session):
                 "locator": "교육과정 표 / 인공지능·빅데이터처리및응용·컴퓨터비전·"
                 "기계학습·딥러닝실습",
                 "review_status": "verified",
-                "reviewer": "사용자 원본 대조 확인 (이 채팅)",
+                "reviewer": "김남주",
                 "reviewed_on": REVIEW_DATE,
                 "note": "검증 범위: 위 5과목명 및 각 3학점. 과목 그룹 조건은 "
                 "그룹의 source_id가 가리키는 졸업요건 안내 및 docs/data-verification.md 참조. "

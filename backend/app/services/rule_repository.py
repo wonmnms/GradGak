@@ -132,5 +132,6 @@ def get_rule_bundle(session, admission_year, program, sub_major):
             "program_credit_mappings_and_category_course_lists",
             "general_education_subconditions_and_exemptions",
             "verified_course_codes_and_equivalences",
+            "general_program_capstone_applicability",
         ],
     }

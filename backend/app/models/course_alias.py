@@ -23,3 +23,7 @@ class CourseAlias(Base):
     )
 
     alias_name: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_documents.source_id"), nullable=True
+    )

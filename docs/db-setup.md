@@ -83,7 +83,7 @@ GitHub CI에서는 별도 PostgreSQL 테스트 DB를 실행하고,
 
 ## 검증된 초기 데이터 입력 및 조회
 
-사람이 대조한 범위와 남은 항목은 [데이터 검증 기록](data-verification.md)을 따른다.
+원본 대조가 끝난 범위와 남은 항목은 [데이터 검증 기록](data-verification.md)을 따른다.
 
 ```powershell
 docker compose exec backend python -m app.seed_official_credits
@@ -99,8 +99,7 @@ docker compose exec backend python -m app.show_rules --program engineering --sub
 이 조회 결과는 DB 내부 전달 형식이며 `/evaluate` API의 응답 DTO가 아니다.
 미완성 데이터는 `data_complete: false`와 `pending_data`로 명시한다.
 이 모듈은 졸업 판정을 계산하지 않는다.
-관계도·조회 계약은 [DB 스키마](db-schema.md), 중간보고에 사용할 결과와 제한은
-[DB 개발 현황](db-progress.md)을 참고한다.
+관계도·조회 계약은 [DB 스키마](db-schema.md)를 참고한다.
 
 ## 새 DB에서 재현
 
@@ -113,7 +112,7 @@ docker compose exec backend python -m app.show_rules --program engineering --sub
 
 도메인 모델 11개, Alembic 마이그레이션, 가상·공식 초기 데이터 입력,
 프로그램별 규칙 조회 및 무결성 테스트를 구현했다.
-공식 초기 데이터는 사용자 대조가 끝난 학점표·인공지능 과목 그룹·공통 비학점 요건,
+공식 초기 데이터는 원본 대조가 끝난 학점표·인공지능 과목 그룹·공통 비학점 요건,
 공학 필수 이수와 캡스톤 택1 및 수학·기초과학 하위 최소 학점이다.
 전체 과목 인정표, 미확인 과목별 학점·학수번호 및 교양 세부 조건 등은 아직 보완해야 한다.
 실제 졸업 판정 계산 및 API 연결은 백엔드 담당 영역이며 이번 DB 조회 모듈에 포함하지 않는다.

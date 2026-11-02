@@ -16,6 +16,8 @@ erDiagram
     courses ||--o{ course_equivalences : completed_or_recognized
     graduation_requirements ||--o{ requirement_sources : evidenced
     source_documents ||--o{ requirement_sources : supports
+    source_documents o|--o{ course_aliases : supports
+    source_documents o|--o{ course_equivalences : supports
     source_documents o|--o{ courses : documents
     source_documents o|--o{ course_group_requirements : documents
     source_documents ||--o{ non_credit_requirements : supports
@@ -50,3 +52,8 @@ parent_category_id는 수학·과학과 기초교양, 설계와 공학주제의 
 
 공식 자료 출처와 검증 범위는 [데이터 검증 기록](data-verification.md),
 실행 방법은 [DB 개발 가이드](db-setup.md)를 따른다.
+
+
+별칭·대체 인정은 source_id로 출처를 연결한다. NULL은 근거 미확인이며 공식 인정에 사용하지 않는다.
+과목 시드는 학과+과목명으로 후보를 찾는 공통 함수를 사용한다. 출처는 식별 키가 아니다.
+캡스톤의 일반프로그램 적용 여부는 원본 추가 확인이 필요하며 pending_data에 표시한다.
