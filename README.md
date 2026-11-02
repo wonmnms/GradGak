@@ -173,9 +173,7 @@ API 서버는 `backend`에서 `..\.venv\Scripts\python.exe -m uvicorn app.main:a
 
 ### 과목 매칭 서비스 (#16)
 
-PDF 파싱 결과의 학수번호·이름을 카탈로그와 연결하는 독립 서비스를 구현했다.
-현재 DB 모델·과목 시드(#11·#12)가 준비되지 않아 가상 데이터로 검증하며 새 HTTP API는 추가하지 않는다.
-별칭·대체 관계 후보, 미매칭·모호함·중복 결과와 DB 연동 지점은 [과목 매칭 안내](docs/course-matching.md)를 참고한다.
+PDF 파싱 결과를 학수번호·과목명·별칭으로 카탈로그와 연결한다. 결과와 DB 연동 경계는 [과목 매칭 안내](docs/course-matching.md)를 참고한다.
 
 ## License
 

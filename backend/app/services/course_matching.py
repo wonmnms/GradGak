@@ -220,7 +220,14 @@ def match_courses(
 
 
 def match_courses_from_repository(
-    courses: Sequence[Course], repository: CourseCatalogRepository
+    courses: Sequence[Course],
+    repository: CourseCatalogRepository,
+    *,
+    admission_year: int,
 ) -> CourseMatchingResult:
-    """Load one consistent snapshot; repository failures are not matching failures."""
-    return match_courses(courses, repository.load_snapshot())
+    """Load one snapshot for the supplied admission year, propagating failures.
+
+    The caller provides the student's admission year explicitly; transcript
+    course years do not determine curriculum scope.
+    """
+    return match_courses(courses, repository.load_snapshot(admission_year=admission_year))

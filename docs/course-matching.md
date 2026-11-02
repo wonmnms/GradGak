@@ -1,16 +1,9 @@
 # 과목 매칭 서비스 (#16)
 
-## 구현 범위와 선행 작업
+## 구현 범위
 
-2026-10-31 확인 기준 [#11](https://github.com/wonmnms/GradGak/issues/11)과 [#12](https://github.com/wonmnms/GradGak/issues/12)는 모두 open이다.
-main에는 ORM 과목 모델·Alembic 마이그레이션·검증된 과목 시드가 아직 없다.
-[#16](https://github.com/wonmnms/GradGak/issues/16)은 이 자료를 임의로 만들지 않고, 검증된 카탈로그 스냅샷을 입력받는 독립 서비스로 구현한다.
-
-[PR #36](https://github.com/wonmnms/GradGak/pull/36)의 PDF 파서와 `Course` 입력 DTO를 재사용한다.
-`feat/16-course-matching`은 #15 커밋 `a9c3f68`에서 분리했으며 #15 브랜치·PR에는 변경을 추가하지 않는다.
-추후 #15가 병합되면 main 기준으로 #16 변경만 남는지 확인한 뒤 통합해야 한다.
-
-현재 `/transcripts/parse`의 응답과 `/evaluate` 명세는 변경하지 않는다. 새 HTTP 엔드포인트나 졸업요건 판정도 추가하지 않는다.
+검증된 카탈로그 스냅샷을 입력받는 독립 서비스다. PDF 파서의 `app.schemas.transcripts.Course`를 입력 DTO로 사용한다.
+새 HTTP 엔드포인트를 추가하거나 `/transcripts/parse` 응답과 `/evaluate` 명세를 변경하지 않는다.
 매칭은 입력 과목의 정체성을 카탈로그와 연결하고 확인된 관계 후보를 전달하는 단계다. 학점 인정·중복 학점 제외·요건 충족을 판정하지 않는다.
 
 ## 입력 경계
@@ -25,8 +18,24 @@ DB 테이블명·컬럼·식별자 타입을 확정하는 의미가 아니다.
 | `CourseEquivalence` | 명시적인 `source_course_id` → `target_course_id` 관계와 `source_document` |
 | `CourseCatalogSnapshot` | 과목·별칭·대체/인정 관계를 한 번에 읽은 카탈로그 |
 
-`course_id`는 어댑터가 주는 불투명한 문자열 키다. 실제 DB가 정수나 UUID를 사용해도 어댑터에서 변환할 수 있다.
-`CourseCatalogRepository.load_snapshot()`은 향후 DB 연동 지점이다. 교육과정·학과·입학년도·프로그램 등 적용 범위와 검증된 근거를 반영한 자료만 제공해야 한다.
+`course_id`는 어댑터가 주는 불투명한 문자열 키다. ORM 정의는 `app/models/`와 [DB 스키마](db-schema.md)를 기준으로 하며 DTO가 테이블을 정의하지 않는다.
+다음은 후속 DB 어댑터에서 명시적으로 변환할 경계다. 이 서비스에는 SQLAlchemy 조회나 실제 DB 어댑터를 구현하지 않는다.
+
+| ORM 필드 | 매칭 DTO로 변환할 값 |
+| --- | --- |
+| `Course.course_id` (정수) | 문자열 `course_id`; 과목·별칭·관계 전체에서 동일한 변환 규칙 사용 |
+| `CourseAlias.alias_name` | `CourseAlias.name` |
+| `CourseEquivalence.completed_course_id` | `source_course_id` |
+| `CourseEquivalence.recognized_course_id` | `target_course_id` |
+| 관계의 `source_id` | 출처와 검증 여부를 확인한 뒤 `source_document`로 표현 |
+
+`CourseCatalogRepository.load_snapshot(admission_year: int)`은 후속 DB 연동 지점이다.
+호출자가 입학년도를 명시하고, 저장소는 해당 입학년도에 적용되는 검증된 카탈로그만 반환해야 한다.
+입학년도를 과목의 수강 연도에서 추정하거나 기본 학번으로 대체하지 않는다. PDF의 입학년도가 `null`이면 호출 전에 검수 입력을 받아야 한다.
+
+ORM의 `CourseEquivalence.requirement_id`는 DTO에 없으므로 어댑터에서 졸업요건의 입학년도·프로그램·세부전공 범위를 제한한 뒤 변환해야 한다.
+입학년도만으로 프로그램·세부전공이 정해지지는 않는다. 추가 문맥의 전달 방식과 적용 범위는 DB 담당자와 어댑터 계약에서 합의해야 하며 임의 기본값을 두지 않는다.
+`SourceDocument` 연결 자체를 원본 대조 완료로 간주하지 않는다. `RequirementSource`의 검증 기록과 관계 근거를 소비하는 방식도 함께 확인해야 한다.
 조회 실패는 그대로 전파하며 과목 매칭 실패로 위장하지 않는다.
 
 가상 데이터는 테스트에만 있다. 실제 과목·별칭·대체 관계는 #12에서 원본 대조와 근거 기록을 완료한 자료만 연결해야 한다.
@@ -97,16 +106,17 @@ result = match_courses(inputs, catalog)
 assert result.matched[0].matched_course.course_id == "fake-a"
 ```
 
-DB 연동 후에는 `match_courses_from_repository(inputs, repository)`로 요청당 스냅샷을 한 번 읽을 수 있다.
+DB 연동 후에는 `match_courses_from_repository(inputs, repository, admission_year=2024)`처럼
+수강 연도와 구분한 입학년도를 명시해 요청당 스냅샷을 한 번 읽는다. 위 예시의 수강 연도는 2031이지만 입학년도는 별도 입력이다.
 
 ## 검증과 DB 연동 후속 작업
 
 공개 테스트는 가상 Course 데이터만 사용한다. 학수번호가 없는 KLAS 입력 조건을 재현한 다수 행 이름 매칭도 검증하며, 실제 이수내역이나 교육과정은 테스트에 넣지 않는다.
-실제 KLAS 과목을 실제 교육과정과 매칭하는 통합 검증은 #11·#12와 DB 어댑터가 준비된 후 별도로 필요하다.
+실제 KLAS 과목을 실제 교육과정과 매칭하는 통합 검증은 검증된 과목 데이터와 DB 어댑터를 연결한 후 별도로 필요하다.
 
-1. #11의 실제 Course·Alias·Equivalence 모델, 식별자와 유일성 규칙 확정
+1. #11의 ORM과 DTO 사이 식별자 변환·별칭 필드·방향성·근거 표현을 DB 담당자와 합의
 2. #12의 과목·과거 이름·대체/인정 관계 원본 대조와 `source_document` 검증
-3. 교육과정·학과·연도·프로그램별 범위를 반영하는 저장소 어댑터 구현
+3. 명시적 입학년도와 교육과정·학과·프로그램·세부전공별 범위를 반영하는 저장소 어댑터 구현
 4. 관계의 방향·유효 기간·인정 범위 및 양방향/전이 허용 여부 확인
 5. #18의 `/evaluate`에서 미매칭·모호함·중복 정보를 소비하는 방식 합의
 6. 실자료 기반 통합 테스트와 DB 실패 처리 확인
