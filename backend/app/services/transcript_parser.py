@@ -359,6 +359,8 @@ def parse_transcript(pdf_bytes: bytes) -> TranscriptParseResponse:
                     raise _no_text_layer_error()
                 text_parts.append(page_text)
                 page_tables = _extract_tables(page)
+                # Even a final page with summary/footer words may contain courses
+                # whose grid failed extraction. Do not silently skip it.
                 if page_text.strip() and not page_tables:
                     raise TranscriptParseError(
                         "TABLE_NOT_FOUND",
