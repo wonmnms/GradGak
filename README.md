@@ -163,7 +163,7 @@ cd backend
 
 테스트와 PDF 파싱 API는 DB 연결 없이 실행할 수 있다. `/health/db` 확인에는 PostgreSQL이 필요하다.
 API 서버는 `backend`에서 `..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload`로 실행하며, 요청 형식은 `/docs`에서 확인한다.
-Alembic 마이그레이션 사용법은 추후 추가한다([#11](https://github.com/wonmnms/GradGak/issues/11)).
+Alembic 마이그레이션 사용법은 [DB 개발 가이드](docs/db-setup.md)를 참고한다.
 
 ### KLAS PDF 파서 검증 상태
 
@@ -175,6 +175,7 @@ Alembic 마이그레이션 사용법은 추후 추가한다([#11](https://github
 공개 테스트는 가상의 과목과 성적으로 만든 합성 자료를 사용하고, 실제 샘플 검증은 환경변수로 명시적으로 실행한다.
 지원 구조와 로컬 검증 방법은 [파서 테스트 안내](backend/tests/README.md), 요청·응답은 [API 명세](docs/api-spec.md#post-transcriptsparse)를 참고한다.
 검증한 저장 형식과 다른 PDF는 별도 확인이 필요하다.
+> DB 테이블 생성, Alembic 마이그레이션, 가상 데이터 및 테스트 실행 방법은 [DB 개발 가이드](docs/db-setup.md)를 참고한다.
 
 ## License
 

@@ -284,3 +284,99 @@
   color: var(--color-text-muted);
   margin: 0;
 }
+
+.summaryCard,
+.commonCard,
+.warningPanel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  padding: 24px;
+  margin-bottom: 20px;
+  overflow-wrap: anywhere;
+}
+.summaryCard h2 {
+  margin: 0 0 10px;
+  font-size: 26px;
+  letter-spacing: -0.04em;
+}
+.summaryCard > p:last-child {
+  margin-bottom: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.commonCard h2,
+.warningPanel h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.warningPanel {
+  border-color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+}
+.warningPanel p,
+.warningPanel li {
+  font-size: 12px;
+}
+.warningPanel ul {
+  padding-left: 20px;
+}
+.warningPanel li {
+  margin-bottom: 12px;
+}
+.requirementRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.requirementRow > strong {
+  font-weight: 500;
+}
+.courseDetails {
+  width: 100%;
+  margin-top: 6px;
+  color: var(--color-text-muted);
+}
+.courseDetails summary {
+  cursor: pointer;
+  padding: 6px 0;
+}
+.courseDetails ul {
+  padding-left: 12px;
+  list-style: none;
+}
+.courseDetails .hint {
+  margin: 8px 0;
+}
+.requirements > li:last-child {
+  border-bottom: none;
+}
+.courseList li > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.controls select {
+  max-width: 100%;
+}
+@media (max-width: 480px) {
+  .controls {
+    width: 100%;
+  }
+  .controls label {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+  .card,
+  .summaryCard,
+  .commonCard,
+  .warningPanel {
+    padding: 16px;
+  }
+  .creditTable th:first-child {
+    width: 35%;
+    overflow-wrap: anywhere;
+  }
+}
