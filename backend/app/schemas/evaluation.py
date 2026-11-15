@@ -1,13 +1,16 @@
 """졸업요건 판정 엔진의 입력·출력 스키마.
 
 입력 `EvaluationCourse`는 과목 매칭이 끝난 과목의 최소 형태다. 매칭 결과를 이 형태로
-바꾸는 일은 `/evaluate` 라우터(#18)가 한다. 출력은 docs/api-spec.md의 `POST /evaluate`
-응답 200 형식을 따르되, 아직 명세에 없는 값·필드는 아래 주석에 표시했다.
+바꾸는 일은 `/evaluate`(#18)가 `app/services/evaluation_input.py`로 한다.
+출력은 docs/api-spec.md의 `POST /evaluate` 응답 200 형식을 따르되,
+아직 명세에 없는 값·필드는 아래 주석에 표시했다.
 """
 
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from app.schemas.transcripts import Course, Year
 
 STATUS_MET = "met"
 STATUS_UNMET = "unmet"
@@ -16,6 +19,26 @@ STATUS_UNMET = "unmet"
 STATUS_PENDING = "pending"
 
 Status = Literal["met", "unmet", "pending"]
+
+
+class EvaluateRequest(BaseModel):
+    """`POST /evaluate` 요청 (docs/api-spec.md)."""
+
+    admission_year: Year
+    program: Literal["engineering", "general"]
+    sub_major: Literal["software", "ai"]
+    thesis_passed: bool
+    topcit_taken: bool
+    courses: list[Course]
+
+
+class EvaluateErrorDetail(BaseModel):
+    code: Literal["UNSUPPORTED_ADMISSION_YEAR", "UNSUPPORTED_SCOPE"]
+    message: str
+
+
+class EvaluateErrorResponse(BaseModel):
+    detail: EvaluateErrorDetail
 
 
 class EvaluationCourse(BaseModel):

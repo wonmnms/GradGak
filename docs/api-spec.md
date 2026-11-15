@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | `program` | `"engineering"` \| `"general"` | 공학 / 일반 |
 | `sub_major` | `"software"` \| `"ai"` | 소프트웨어전공 / 인공지능전공 |
-| `status` | `"met"` \| `"unmet"` | 충족 / 미충족 |
+| `status` | `"met"` \| `"unmet"` \| `"pending"` | 충족 / 미충족 / 판정 보류(규칙 데이터 미완성) |
 | `term` | `"1"` \| `"2"` \| `"summer"` \| `"winter"` | 1학기 / 2학기 / 여름 / 겨울 계절학기 |
 
 ### 이수과목 (`Course`)
@@ -184,7 +184,12 @@ F·NP 성적, 빈 성적, 재수강 행과 `(삭제)` 성적 행을 모두 보�
   ],
   "unmatched_courses": [
     { "index": 7, "name": "(과목명)", "reason": "과목 데이터에서 찾지 못했습니다." }
-  ]
+  ],
+  "excluded_courses": [
+    { "index": 3, "name": "(과목명)", "reason": "성적 'F'은(는) 학점·이수로 인정하지 않았습니다." }
+  ],
+  "pending_data": ["program_credit_mappings_and_category_course_lists"],
+  "warnings": ["규칙 데이터가 미완성이라 최종 충족으로 판정할 수 없습니다."]
 }
 ```
 
@@ -192,20 +197,25 @@ F·NP 성적, 빈 성적, 재수강 행과 `(삭제)` 성적 행을 모두 보�
 
 | 필드 | 설명 |
 | --- | --- |
-| `graduation_status` | 최종 판정. `common_requirements`와 `program_results`가 **모두** `met`일 때만 `met` |
+| `graduation_status` | 최종 판정. 하나라도 `unmet`이면 `unmet`, 아니고 하나라도 `pending`이면 `pending`, `common_requirements`·`program_results`가 **모두** `met`이고 규칙 데이터가 완성됐을 때만 `met` |
 | `common_requirements` | 공통 요건. 소프트웨어전공은 세부전공필수가 없으므로 `sub_major_required` 항목 자체를 넣지 않는다 |
 | `program_results` | 프로그램별 학점 요건. 공학 선택 시 `[engineering, general]` 순서로 2개, 일반 선택 시 `[general]` 1개 |
 | `total` | 총 졸업학점 |
-| `categories` | 영역별 학점 (기초교양·균형교양·전공필수·전공선택 등 — 실제 목록은 시드 데이터 기준). 같은 과목도 프로그램에 따라 전공 학점 인정 여부가 다를 수 있다 |
+| `total`·`categories`의 숫자 | `required`·`earned`·`remaining`은 판정할 수 없으면 `null` |
+| `categories` | 영역별 학점 (기초교양·균형교양·전공필수·전공선택 등 — 실제 목록은 시드 데이터 기준). 같은 과목도 프로그램에 따라 전공 학점 인정 여부가 다를 수 있다. 영역 인정 과목 목록이 없으면 `status: "pending"`이고 `reason`에 보류 사유가 있다 |
 | `course_groups` | 그 프로그램에만 적용되는 "지정 과목 N개 중 M개" 요건. 형식은 `sub_major_required`와 같다. 없으면 빈 배열 |
 | `missing_required_courses` | 아직 듣지 않은 필수과목 |
-| `unmatched_courses` | 과목 데이터와 매칭하지 못해 판정에서 빠진 과목. `index`는 요청 `courses` 배열의 위치(0부터). 검수 화면에서 안내용 |
+| `unmatched_courses` | 과목 데이터와 매칭하지 못한 과목(후보가 여럿인 모호한 과목 포함). 공학 판정에서 한 과목이 공학·일반 범위에서 서로 다른 과목으로 매칭되어도 여기에 넣는다. 과목·그룹 판정에서는 빠지지만 인정 성적이면 요청 `credits`로 총학점에는 포함한다. `index`는 요청 `courses` 배열의 위치(0부터). 검수 화면에서 안내용 |
+| `excluded_courses` | 성적(F·NP·빈 성적·`(삭제)` 등)이나 같은 과목 중복 때문에 학점·이수에서 제외한 과목. 형식은 `unmatched_courses`와 같다 |
+| `pending_data` | 규칙 데이터가 미완성이라 판정을 보류한 항목 코드 목록 |
+| `warnings` | 학점 불일치·중복 확인 불가 등 안내 문장 목록 |
 
 ### 에러
 
 | 상태 | `code` | 상황 |
 | --- | --- | --- |
-| 400 | `UNSUPPORTED_ADMISSION_YEAR` | 지원하지 않는 입학년도 (MVP는 2024만) |
+| 400 | `UNSUPPORTED_ADMISSION_YEAR` | DB에 졸업요건이 하나도 없는 입학년도 (MVP는 2024만) |
+| 400 | `UNSUPPORTED_SCOPE` | 입학년도는 있지만 선택한 프로그램·세부전공의 졸업요건 데이터가 없거나 완전하지 않음 |
 
 ---
 

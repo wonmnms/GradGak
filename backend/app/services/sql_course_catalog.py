@@ -46,6 +46,14 @@ def to_catalog_id(course_id: int) -> str:
     return str(course_id)
 
 
+def from_catalog_id(catalog_id: str) -> int:
+    """Inverse of ``to_catalog_id``; rejects any string it would not produce."""
+    course_id = int(catalog_id)
+    if to_catalog_id(course_id) != catalog_id:
+        raise ValueError(f"Not a catalog id: {catalog_id!r}")
+    return course_id
+
+
 def _require_text(name: str, value: object) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} must be a non-empty string")

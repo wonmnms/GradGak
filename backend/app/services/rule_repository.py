@@ -1,6 +1,6 @@
 """DB의 규칙을 백엔드에 제공한다. 졸업 판정 계산이나 API 응답 DTO는 아니다."""
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
 
 from app.models import (
     Course,
@@ -10,6 +10,13 @@ from app.models import (
     NonCreditRequirement,
     RequirementCategory,
 )
+
+
+def has_admission_year(session, admission_year) -> bool:
+    """이 입학년도의 졸업요건 범위가 하나라도 있는지. 오류 응답 구분용이며 판정에 쓰지 않는다."""
+    return session.scalar(
+        select(exists().where(GraduationRequirement.admission_year == admission_year))
+    )
 
 
 def get_rule_bundle(session, admission_year, program, sub_major):
