@@ -9,3 +9,6 @@ venv/
 
 # Env files
 .env
+
+# 개인정보가 포함될 수 있는 로컬 KLAS 검증 자료 (PDF/기대 결과 모두)
+backend/tests/private_samples/
