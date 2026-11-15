@@ -39,6 +39,13 @@ PENDING_CATEGORY_REASON = "영역 인정 과목 목록이 아직 없어 판정�
 PENDING_DATA_REASON = "규칙 데이터가 미완성이라 최종 충족으로 판정할 수 없습니다."
 UNMATCHED_REASON = "과목 데이터에서 찾지 못했습니다."
 
+# 매칭 실패 과목의 총학점 포함 (사용자 결정, 2026-11-15):
+# 인정 성적이면 매칭 여부와 상관없이 요청 credits로 총학점에 포함한다.
+# 그룹 판정에는 쓰지 않으며 unmatched_courses에도 계속 넣는다.
+# course_id가 없어 재수강 중복 제거를 할 수 없으므로 경고를 한 번 남긴다.
+COUNT_UNMATCHED_IN_TOTAL = True
+UNMATCHED_DEDUP_WARNING = "매칭되지 않은 과목은 중복 이수 여부를 확인하지 못했습니다."
+
 
 def grade_exclusion_reason(grade: str | None) -> str | None:
     """성적 때문에 인정하지 않으면 사유를, 인정하면 None을 반환한다."""
@@ -200,20 +207,22 @@ def evaluate(
     thesis_passed: bool,
     topcit_taken: bool,
 ) -> EvaluationResult:
-    """rule_bundle(`get_rule_bundle()` 반환값)과 매칭된 이수과목으로 졸업요건을 판정한다."""
+    """rule_bundle(`get_rule_bundle()` 반환값)과 이수과목으로 졸업요건을 판정한다."""
     unmatched, excluded, warnings = [], [], []
-    candidates = []
+    candidates, unmatched_recognized = [], []
     for course in completed:
         if course.course_id is None:
             unmatched.append(
                 CourseNotice(index=course.index, name=course.name, reason=UNMATCHED_REASON)
             )
-            continue
         reason = grade_exclusion_reason(course.grade)
         if reason is not None:
             excluded.append(CourseNotice(index=course.index, name=course.name, reason=reason))
             continue
-        candidates.append(course)
+        if course.course_id is None:
+            unmatched_recognized.append(course)
+        else:
+            candidates.append(course)
 
     kept, dropped = deduplicate_retakes(candidates)
     excluded.extend(CourseNotice(index=c.index, name=c.name, reason=r) for c, r in dropped)
@@ -226,6 +235,9 @@ def evaluate(
         total_credits += credits
         if warning:
             warnings.append(warning)
+    if COUNT_UNMATCHED_IN_TOTAL and unmatched_recognized:
+        total_credits += sum(course.credits for course in unmatched_recognized)
+        warnings.append(UNMATCHED_DEDUP_WARNING)
     recognized = _Recognized(course_ids={c.course_id for c in kept}, total_credits=total_credits)
 
     inputs = {"thesis_passed": thesis_passed, "topcit_taken": topcit_taken}

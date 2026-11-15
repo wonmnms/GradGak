@@ -304,14 +304,40 @@ def test_duplicate_passing_entries_count_once():
 # --- 매칭 실패·학점 기준 -----------------------------------------------------
 
 
-def test_unmatched_course_is_reported_and_excluded():
+def test_unmatched_recognized_course_counts_in_total_with_warning():
     completed = [
         EvaluationCourse(index=0, course_id=None, name="가상미매칭", credits=3, grade="A0"),
         EvaluationCourse(index=1, course_id=90, name="가상일반", credits=3, grade="A0"),
     ]
     result = evaluate(make_bundle("general", "software"), completed, True, True)
     assert [(n.index, n.name) for n in result.unmatched_courses] == [(0, "가상미매칭")]
+    assert result.program_results[0].total.earned == 6
+    assert result.warnings.count(evaluation.UNMATCHED_DEDUP_WARNING) == 1
+    assert result.excluded_courses == []
+
+
+def test_unmatched_course_is_not_used_for_groups():
+    completed = [
+        EvaluationCourse(index=0, course_id=None, name="가상세부1", credits=3, grade="A0"),
+        EvaluationCourse(index=1, course_id=None, name="가상세부2", credits=3, grade="B0"),
+    ]
+    result = evaluate(make_bundle("general", "ai"), completed, True, True)
+    assert common_by_id(result)["sub_major_required"].completed_count == 0
+    assert result.program_results[0].total.earned == 6
+    assert result.warnings.count(evaluation.UNMATCHED_DEDUP_WARNING) == 1
+
+
+@pytest.mark.parametrize("grade", ["F", "NP"])
+def test_unmatched_failed_course_is_excluded_from_total(grade):
+    completed = [
+        EvaluationCourse(index=0, course_id=None, name="가상미매칭", credits=3, grade=grade),
+        EvaluationCourse(index=1, course_id=90, name="가상일반", credits=3, grade="A0"),
+    ]
+    result = evaluate(make_bundle("general", "software"), completed, True, True)
     assert result.program_results[0].total.earned == 3
+    assert [n.index for n in result.unmatched_courses] == [0]
+    assert [n.index for n in result.excluded_courses] == [0]
+    assert evaluation.UNMATCHED_DEDUP_WARNING not in result.warnings
 
 
 def test_credit_mismatch_uses_policy_and_warns():
