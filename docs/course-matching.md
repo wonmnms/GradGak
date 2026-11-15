@@ -19,7 +19,7 @@ DB 테이블명·컬럼·식별자 타입을 확정하는 의미가 아니다.
 | `CourseCatalogSnapshot` | 과목·별칭·대체/인정 관계를 한 번에 읽은 카탈로그 |
 
 `course_id`는 어댑터가 주는 불투명한 문자열 키다. ORM 정의는 `app/models/`와 [DB 스키마](db-schema.md)를 기준으로 하며 DTO가 테이블을 정의하지 않는다.
-다음은 후속 DB 어댑터에서 명시적으로 변환할 경계다. 이 서비스에는 SQLAlchemy 조회나 실제 DB 어댑터를 구현하지 않는다.
+다음은 DB 어댑터(아래 [DB 어댑터](#db-어댑터))가 명시적으로 변환하는 경계다. 매칭 서비스 자체에는 SQLAlchemy 조회가 없다.
 
 | ORM 필드 | 매칭 DTO로 변환할 값 |
 | --- | --- |
@@ -29,7 +29,7 @@ DB 테이블명·컬럼·식별자 타입을 확정하는 의미가 아니다.
 | `CourseEquivalence.recognized_course_id` | `target_course_id` |
 | 관계의 `source_id` | 출처와 검증 여부를 확인한 뒤 `source_document`로 표현 |
 
-`CourseCatalogRepository.load_snapshot(admission_year: int)`은 후속 DB 연동 지점이다.
+`CourseCatalogRepository.load_snapshot(admission_year: int)`은 DB 연동 지점이다.
 호출자가 입학년도를 명시하고, 저장소는 해당 입학년도에 적용되는 검증된 카탈로그만 반환해야 한다.
 입학년도를 과목의 수강 연도에서 추정하거나 기본 학번으로 대체하지 않는다. PDF의 입학년도가 `null`이면 호출 전에 검수 입력을 받아야 한다.
 
@@ -109,6 +109,26 @@ assert result.matched[0].matched_course.course_id == "fake-a"
 DB 연동 후에는 `match_courses_from_repository(inputs, repository, admission_year=2024)`처럼
 수강 연도와 구분한 입학년도를 명시해 요청당 스냅샷을 한 번 읽는다. 위 예시의 수강 연도는 2031이지만 입학년도는 별도 입력이다.
 
+## DB 어댑터
+
+`app/services/sql_course_catalog.py`의 `SqlCourseCatalogRepository`가 `CourseCatalogRepository`를 구현한다.
+매칭 서비스가 DB에 의존하지 않도록 `course_catalog.py`와 별도 모듈에 둔다.
+
+```python
+repo = SqlCourseCatalogRepository(session, program="general", sub_major="software")
+result = match_courses_from_repository(inputs, repo, admission_year=2024)
+```
+
+- `program`·`sub_major`는 키워드 필수 인자이며 기본값이 없다. 세션 수명은 호출자가 관리한다.
+- 인스턴스 하나는 `GraduationRequirement` 하나(입학년도·프로그램·세부전공)만 읽는다. 범위가 없으면 `LookupError`이며 다른 학번·프로그램으로 대체하지 않는다.
+- 공학 판정은 공학·일반 요건을 모두 보므로 `program="engineering"`과 `program="general"` 저장소를 각각 만들어 범위별로 매칭한다.
+  DTO에 `requirement_id`가 없어 두 범위를 한 스냅샷에 합치면 한 프로그램에만 적용되는 대체 관계가 다른 프로그램 판정에 섞이기 때문이다.
+- 과목: Course에는 입학년도가 없으므로 해당 요건의 영역(`requirement_category_courses`)·과목 그룹(`course_group_requirement_courses`)에 연결된 과목과, 포함된 대체 관계의 양쪽 과목만 넣는다.
+- 별칭·대체 관계: `source_id`가 해당 요건의 `RequirementSource`에서 `review_status='verified'`인 출처일 때만 넣는다.
+  NULL 출처, 검증 기록이 없는 출처, pending·needs_clarification·rejected, 다른 요건 범위에서만 검증된 출처는 제외한다.
+  대체 관계는 `requirement_id`가 해당 요건인 것만, 별칭은 스냅샷 과목을 가리키는 것만 넣는다.
+- `source_document`에는 `SourceDocument.url`을 넣는다. DB 오류는 그대로 전파한다.
+
 ## 검증과 DB 연동 후속 작업
 
 공개 테스트는 가상 Course 데이터만 사용한다. 학수번호가 없는 KLAS 입력 조건을 재현한 다수 행 이름 매칭도 검증하며, 실제 이수내역이나 교육과정은 테스트에 넣지 않는다.
@@ -116,7 +136,7 @@ DB 연동 후에는 `match_courses_from_repository(inputs, repository, admission
 
 1. #11의 ORM과 DTO 사이 식별자 변환·별칭 필드·방향성·근거 표현을 DB 담당자와 합의
 2. #12의 과목·과거 이름·대체/인정 관계 원본 대조와 `source_document` 검증
-3. 명시적 입학년도와 교육과정·학과·프로그램·세부전공별 범위를 반영하는 저장소 어댑터 구현
+3. 명시적 입학년도와 교육과정·학과·프로그램·세부전공별 범위를 반영하는 저장소 어댑터 구현: 완료, [DB 어댑터](#db-어댑터) 참고
 4. 관계의 방향·유효 기간·인정 범위 및 양방향/전이 허용 여부 확인
 5. #18의 `/evaluate`에서 미매칭·모호함·중복 정보를 소비하는 방식 합의
 6. 실자료 기반 통합 테스트와 DB 실패 처리 확인
