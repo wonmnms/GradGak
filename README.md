@@ -171,6 +171,10 @@ API 서버는 `backend`에서 `..\.venv\Scripts\python.exe -m uvicorn app.main:a
 `POST /transcripts/parse`는 KLAS 이수내역 PDF를 과목 목록으로 변환한다.
 요청·응답은 [API 명세](docs/api-spec.md#post-transcriptsparse), 지원하는 PDF 구조·제한사항과 로컬 검증 절차는 [파서 테스트 안내](backend/tests/README.md)를 참고한다.
 
+### 과목 매칭 서비스 (#16)
+
+PDF 파싱 결과를 학수번호·과목명·별칭으로 카탈로그와 연결한다. 결과와 DB 연동 경계는 [과목 매칭 안내](docs/course-matching.md)를 참고한다.
+
 ## License
 
 이 프로젝트는 [MIT License](LICENSE)를 따른다.
