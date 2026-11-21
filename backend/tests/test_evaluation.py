@@ -269,7 +269,7 @@ def test_incomplete_data_blocks_met_even_without_categories():
 # --- 성적 정책 --------------------------------------------------------------
 
 
-@pytest.mark.parametrize("grade", ["F", "NP", None, "", "  ", "(삭제)", "X?"])
+@pytest.mark.parametrize("grade", ["F", "NP", None, "", "  ", "C+(삭제)", "(삭제)", "X?"])
 def test_non_recognized_grades_are_excluded(grade):
     completed = courses((1, 3, grade), (90, 3, "A0"))
     result = evaluate(make_bundle("general", "ai"), completed, True, True)
@@ -367,9 +367,50 @@ def test_repeated_course_without_retake_mark_counts_both_and_warns():
 
 
 def test_deleted_grade_row_marks_retake():
-    completed = courses((90, 3, "(삭제)"), (90, 3, "A0"), (90, 3, "B0"))
+    completed = courses((90, 3, "C+(삭제)"), (90, 3, "A0"), (90, 3, "B0"))
     result = evaluate(make_bundle("general", "ai"), completed, True, True)
     assert result.program_results[0].total.earned == 3
+
+
+def test_deleted_grade_with_original_grade_dedups_same_course_id():
+    completed = courses((5, 3, "C+(삭제)", False), (5, 3, "B0", False), (5, 3, "A0", False))
+    result = evaluate(make_bundle("general", "ai"), completed, True, True)
+    assert result.program_results[0].total.earned == 3
+
+
+def test_unmatched_rows_group_by_name_even_if_only_one_has_code():
+    completed = [
+        EvaluationCourse(
+            index=0, course_id=None, name="X과목", credits=3, grade="D0", course_code="A1"
+        ),
+        EvaluationCourse(
+            index=1, course_id=None, name="X과목", credits=3, grade="A0", is_retake=True
+        ),
+    ]
+    result = evaluate(make_bundle("general", "software"), completed, True, True)
+    assert result.program_results[0].total.earned == 3
+    assert not any("원 수강 기록을 찾지 못했습니다" in w for w in result.warnings)
+
+
+def test_retake_without_original_warns_when_matched_and_unmatched_differ():
+    completed = [
+        EvaluationCourse(index=0, course_id=None, name="컴퓨팅사고", credits=3, grade="D0"),
+        EvaluationCourse(
+            index=1, course_id=7, name="스마트사회와인공지능", credits=3, grade="A0", is_retake=True
+        ),
+    ]
+    result = evaluate(make_bundle("general", "software"), completed, True, True)
+    assert (
+        "1번 과목('스마트사회와인공지능')은 재수강으로 표시됐지만 원 수강 기록을 찾지 못했습니다. "
+        "이전 과목명이 다르면 학점이 중복 인정될 수 있으니 확인하세요."
+    ) in result.warnings
+
+
+def test_retake_flag_only_on_excluded_row_warns_when_merging():
+    completed = courses((90, 3, "D+(삭제)", True), (90, 3, "A0"), (90, 3, "B0"))
+    result = evaluate(make_bundle("general", "ai"), completed, True, True)
+    assert result.program_results[0].total.earned == 3
+    assert any("제외된 0번 행의 재수강 표시" in w for w in result.warnings)
 
 
 def test_unmatched_retake_counts_once():

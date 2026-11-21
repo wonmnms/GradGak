@@ -77,16 +77,41 @@ def resolve_credits(
     return min(course.credits, catalog_credits), warning
 
 
-def _course_key(course: EvaluationCourse) -> tuple:
-    if course.course_id is not None:
-        return ("id", course.course_id)
-    if course.course_code:
-        return ("code", course.course_code.strip())
-    return ("name", normalize_course_name(course.name))
-
-
 def _is_retake_row(course: EvaluationCourse) -> bool:
-    return course.is_retake or (course.grade or "").strip() == DELETED_GRADE
+    # 실제 성적 표기는 "C+(삭제)"처럼 원 성적 뒤에 "(삭제)"가 붙는다.
+    return course.is_retake or (course.grade or "").strip().endswith(DELETED_GRADE)
+
+
+def _group_courses(courses: list[EvaluationCourse]) -> dict[int, tuple]:
+    """각 과목(`id(course)`)이 속한 같은 과목 그룹의 대표 키를 반환한다.
+
+    매칭된 과목은 course_id로 묶는다. 매칭 실패 과목은 course_code가 같거나 정규화한
+    과목명이 같으면 같은 그룹이다(한쪽에만 code가 있어도 이름이 같으면 묶음).
+    매칭 행과 매칭 실패 행은 엔진이 카탈로그 code/name을 모르므로 묶지 않는다.
+    """
+    parent: dict[tuple, tuple] = {}
+
+    def find(token: tuple) -> tuple:
+        parent.setdefault(token, token)
+        while parent[token] != token:
+            parent[token] = parent[parent[token]]
+            token = parent[token]
+        return token
+
+    def tokens(course: EvaluationCourse) -> list[tuple]:
+        if course.course_id is not None:
+            return [("id", course.course_id)]
+        result = [("name", normalize_course_name(course.name))]
+        if course.course_code and course.course_code.strip():
+            result.append(("code", course.course_code.strip()))
+        return result
+
+    for course in courses:
+        first, *rest = tokens(course)
+        for token in rest:
+            parent[find(token)] = find(first)
+        find(first)
+    return {id(course): find(tokens(course)[0]) for course in courses}
 
 
 def deduplicate_retakes(
@@ -95,22 +120,34 @@ def deduplicate_retakes(
 ) -> tuple[list[EvaluationCourse], list, list[str]]:
     """같은 과목으로 묶이는 인정 행 중 재수강인 경우에만 1번만 남긴다.
 
-    과목 키: course_id, 없으면 course_code, 없으면 정규화한 과목명.
-    재수강 판단: 같은 키의 행(성적 때문에 제외된 행 포함, `all_courses`) 중 하나라도
-    is_retake이거나 "(삭제)" 성적이면 재수강으로 본다. 재수강이면 재수강 표시가 있는 것을
-    우선, 그다음 학점이 작은 것(보수적)을 남긴다. 재수강 표시가 없으면 반복 이수나 서로 다른
-    옛 과목이 같은 과목에 매칭된 경우일 수 있으므로 모두 인정하고 경고만 남긴다.
+    그룹 기준은 `_group_courses` 참고. 재수강 판단: 같은 그룹의 행(성적 때문에 제외된 행
+    포함, `all_courses`) 중 하나라도 is_retake이거나 성적이 "(삭제)"로 끝나면 재수강으로
+    본다. 재수강이면 재수강 표시가 있는 것을 우선, 그다음 학점이 작은 것(보수적)을 남긴다.
+    재수강 표시가 없으면 반복 이수나 서로 다른 옛 과목이 같은 과목에 매칭된 경우일 수
+    있으므로 모두 인정하고 경고만 남긴다. is_retake인데 같은 그룹에 다른 행(원 수강)이
+    없으면 이전 과목명이 달라 중복 인정될 수 있으므로 경고한다.
     반환: (남긴 과목, 제외한 과목 목록[(과목, 사유)], 경고).
     """
-    retake_keys = {_course_key(c) for c in (all_courses or courses) if _is_retake_row(c)}
+    universe = all_courses or courses
+    keys = _group_courses(universe)
+    members: dict[tuple, list[EvaluationCourse]] = {}
+    for c in universe:
+        members.setdefault(keys[id(c)], []).append(c)
     groups: dict[tuple, list[EvaluationCourse]] = {}
     for course in courses:
-        groups.setdefault(_course_key(course), []).append(course)
+        groups.setdefault(keys[id(course)], []).append(course)
     kept, dropped, warnings = [], [], []
+    for course in universe:
+        if course.is_retake and len(members[keys[id(course)]]) == 1:
+            warnings.append(
+                f"{course.index}번 과목('{course.name}')은 재수강으로 표시됐지만 원 수강 기록을 "
+                "찾지 못했습니다. 이전 과목명이 다르면 학점이 중복 인정될 수 있으니 확인하세요."
+            )
     for key, entries in groups.items():
+        retake_rows = [c for c in members[key] if _is_retake_row(c)]
         if len(entries) == 1:
             kept.extend(entries)
-        elif key in retake_keys:
+        elif retake_rows:
             keep = min(entries, key=lambda c: (not c.is_retake, c.credits, c.index))
             kept.append(keep)
             for other in entries:
@@ -121,6 +158,13 @@ def deduplicate_retakes(
                             f"같은 과목({keep.index}번)과 중복되어 학점을 한 번만 인정했습니다.",
                         )
                     )
+            if not any(_is_retake_row(c) for c in entries):
+                indexes = ", ".join(f"{c.index}번" for c in entries)
+                sources = ", ".join(f"{c.index}번" for c in retake_rows)
+                warnings.append(
+                    f"{indexes} 과목('{entries[0].name}')은 성적 때문에 제외된 {sources} 행의 "
+                    "재수강 표시를 근거로 한 번만 인정했습니다. 확인하세요."
+                )
         else:
             kept.extend(entries)
             indexes = ", ".join(f"{c.index}번" for c in entries)
@@ -245,7 +289,11 @@ def evaluate(
     thesis_passed: bool,
     topcit_taken: bool,
 ) -> EvaluationResult:
-    """rule_bundle(`get_rule_bundle()` 반환값)과 이수과목으로 졸업요건을 판정한다."""
+    """rule_bundle(`get_rule_bundle()` 반환값)과 이수과목으로 졸업요건을 판정한다.
+
+    호출 계약: 완전히 같은 중복 행(PDF 중복·입력 실수)은 엔진이 구분하지 못한다. 라우터는
+    매칭 모듈의 `duplicate_inputs`에 해당하는 행을 엔진에 넣기 전에 제외해야 한다.
+    """
     unmatched, excluded, warnings = [], [], []
     candidates = []
     for course in completed:
