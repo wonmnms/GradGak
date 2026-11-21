@@ -24,6 +24,7 @@ from app.schemas.evaluation import (
     ProgramResult,
 )
 from app.services.course_matching import normalize_course_name
+from app.services.rule_errors import InvalidRuleDataError
 
 # ---------------------------------------------------------------------------
 # 정책 미결정 사항 (팀 결정 전 임시 기본값). 바꿀 때는 이 구역만 수정한다.
@@ -186,8 +187,34 @@ def deduplicate_retakes(
 
 @dataclass
 class _Recognized:
-    course_ids: set[int]
+    # 인정된 이수 행마다 채울 수 있는 과목 id: (원래 과목, *verified 대체 대상). 행 하나는
+    # 한 그룹에서 과목 최대 1개만 채운다.
+    rows: list[tuple[int, ...]]
     total_credits: float
+
+
+def _completed_ids(group: dict, recognized: _Recognized) -> set[int]:
+    """그룹 과목 중 이수로 인정된 id. 이수 행 하나가 과목 하나만 채우도록 매칭한다.
+
+    직접 이수(원래 과목)를 먼저 시도하고, 막히면 대체 대상으로 자리를 바꿔(증강 경로)
+    최대한 많이 채운다. 대체 대상이 여럿이어도 한 행은 1개만 인정한다.
+    """
+    group_ids = {course["course_id"] for course in group["courses"]}
+    owner: dict[int, int] = {}  # 과목 id -> 채운 행 위치
+
+    def assign(row: int, seen: set[int]) -> bool:
+        for course_id in recognized.rows[row]:
+            if course_id not in group_ids or course_id in seen:
+                continue
+            seen.add(course_id)
+            if course_id not in owner or assign(owner[course_id], seen):
+                owner[course_id] = row
+                return True
+        return False
+
+    for row in range(len(recognized.rows)):
+        assign(row, set())
+    return set(owner)
 
 
 def _combine(statuses: list[str]) -> str:
@@ -207,7 +234,8 @@ def _catalog_credits(rule_bundle: dict) -> dict[int, int | None]:
     return {course["course_id"]: course["credits"] for g in groups for course in g["courses"]}
 
 
-def _evaluate_group(group: dict, completed_ids: set[int]) -> CourseGroupResult:
+def _evaluate_group(group: dict, recognized: _Recognized) -> CourseGroupResult:
+    completed_ids = _completed_ids(group, recognized)
     courses = [
         GroupCourseResult(
             course_code=course["course_code"],
@@ -230,17 +258,18 @@ def _evaluate_group(group: dict, completed_ids: set[int]) -> CourseGroupResult:
 def _evaluate_non_credit(rule: dict, inputs: dict[str, bool]) -> NonCreditResult:
     field = rule["input_field"]
     if field not in inputs:
-        raise ValueError(f"Unknown input_field in rule: {field}")
+        raise InvalidRuleDataError(f"Unknown input_field in rule: {field}")
     met = inputs[field] == rule["expected_value"]
     return NonCreditResult(
         id=rule["code"], label=rule["label"], status=STATUS_MET if met else STATUS_UNMET
     )
 
 
-def _missing_courses(group: dict, completed_ids: set[int]) -> list[MissingCourse]:
+def _missing_courses(group: dict, recognized: _Recognized) -> list[MissingCourse]:
     """모든 과목이 필수인 그룹(min_courses == 과목 수)에서 아직 안 들은 과목만 반환한다."""
     if group["min_courses"] != len(group["courses"]):
         return []
+    completed_ids = _completed_ids(group, recognized)
     return [
         MissingCourse(course_code=c["course_code"], name=c["name"], credits=c["credits"])
         for c in group["courses"]
@@ -269,11 +298,9 @@ def _evaluate_program(program: dict, recognized: _Recognized) -> ProgramResult:
         )
         for row in program["categories"]
     ]
-    groups = [_evaluate_group(g, recognized.course_ids) for g in program["course_groups"]]
+    groups = [_evaluate_group(g, recognized) for g in program["course_groups"]]
     missing = [
-        course
-        for g in program["course_groups"]
-        for course in _missing_courses(g, recognized.course_ids)
+        course for g in program["course_groups"] for course in _missing_courses(g, recognized)
     ]
     status = _combine([total.status] + [c.status for c in categories] + [g.status for g in groups])
     return ProgramResult(
@@ -326,10 +353,18 @@ def _prepare(completed: list[EvaluationCourse], catalog: dict[int, int | None]) 
         total_credits += credits
         if warning:
             warnings.append(warning)
-    # 대체·인정 대상은 이수한 것으로 보되 학점은 원래 과목으로 한 번만 센다(위 합계).
-    course_ids = {c.course_id for c in kept if c.course_id is not None}
-    course_ids.update(target for c in kept for target in c.equivalent_course_ids)
-    return _Prepared(_Recognized(course_ids, total_credits), unmatched, excluded, warnings)
+    # 대체·인정 대상은 이수한 것으로 보되 학점은 원래 과목으로만 센다(위 합계).
+    rows = [(c.course_id, *c.equivalent_course_ids) for c in kept if c.course_id is not None]
+    kept_ids = {c.course_id for c in kept if c.course_id is not None}
+    for course in kept:
+        both = kept_ids.intersection(course.equivalent_course_ids)
+        if course.course_id is not None and both:
+            warnings.append(
+                f"{course.index}번 과목('{course.name}')은 이미 이수한 과목과 대체·인정 관계라 "
+                "두 과목의 학점을 모두 인정했습니다. 학점을 한 번만 인정해야 하는지는 "
+                "학부 확인 전이라 정하지 않았으니 확인하세요."
+            )
+    return _Prepared(_Recognized(rows, total_credits), unmatched, excluded, warnings)
 
 
 def _program_label(program: str) -> str:
@@ -375,7 +410,7 @@ def _merge_warnings(per_program: dict[str, list[str]]) -> list[str]:
 
 def evaluate(
     rule_bundle: dict,
-    completed: Sequence[EvaluationCourse] | Mapping[str, Sequence[EvaluationCourse]],
+    completed: Mapping[str, Sequence[EvaluationCourse]],
     thesis_passed: bool,
     topcit_taken: bool,
 ) -> EvaluationResult:
@@ -384,24 +419,24 @@ def evaluate(
     `completed`는 프로그램별 매칭 결과다({"engineering": [...], "general": [...]}). 매칭 범위와
     verified 대체 관계가 프로그램마다 달라서, 각 프로그램 결과는 자기 범위의 과목으로만
     판정한다. 공통 요건은 `program_results`의 첫 항목(학생이 요청한 프로그램)의 과목으로
-    판정한다. 리스트를 주면 모든 프로그램에 같은 과목을 쓴다.
+    판정한다. `program_results`의 모든 프로그램 키가 있어야 한다.
 
     호출 계약: 완전히 같은 중복 행(PDF 중복·입력 실수)은 엔진이 구분하지 못한다. 호출자는
     매칭 모듈의 `duplicate_inputs`에 해당하는 행을 엔진에 넣기 전에 제외해야 한다
     (`evaluation_input.build_scope_inputs`가 한다).
     """
     programs = [row["program"] for row in rule_bundle["program_results"]]
-    if isinstance(completed, Mapping):
-        by_program = {program: list(completed[program]) for program in programs}
-    else:
-        by_program = {program: list(completed) for program in programs}
+    missing = [program for program in programs if program not in completed]
+    if missing:
+        raise ValueError(f"completed is missing programs: {', '.join(missing)}")
+    by_program = {program: list(completed[program]) for program in programs}
     catalog = _catalog_credits(rule_bundle)
     prepared = {program: _prepare(rows, catalog) for program, rows in by_program.items()}
 
     inputs = {"thesis_passed": thesis_passed, "topcit_taken": topcit_taken}
-    common_ids = prepared[programs[0]].recognized.course_ids
+    common_recognized = prepared[programs[0]].recognized
     common = [
-        _evaluate_group(row, common_ids)
+        _evaluate_group(row, common_recognized)
         if "min_courses" in row
         else _evaluate_non_credit(row, inputs)
         for row in rule_bundle["common_requirements"]

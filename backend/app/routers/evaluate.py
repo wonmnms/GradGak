@@ -10,6 +10,7 @@ from app.schemas.evaluation import EvaluateErrorResponse, EvaluateRequest, Evalu
 from app.services.course_matching import CatalogValidationError, match_courses
 from app.services.evaluation import evaluate
 from app.services.evaluation_input import build_scope_inputs, evaluation_scopes
+from app.services.rule_errors import InvalidRuleDataError
 from app.services.rule_repository import RuleScopeNotFound, get_rule_bundle, has_admission_year
 from app.services.sql_course_catalog import SqlCourseCatalogRepository
 
@@ -26,7 +27,7 @@ def _unsupported(session: Session, admission_year: int) -> HTTPException:
     else:
         detail = {
             "code": "UNSUPPORTED_SCOPE",
-            "message": "선택한 프로그램·세부전공의 졸업요건 데이터가 없거나 완전하지 않습니다.",
+            "message": "선택한 프로그램·세부전공의 졸업요건 데이터가 없습니다.",
         }
     return HTTPException(status_code=400, detail=detail)
 
@@ -65,13 +66,14 @@ def evaluate_graduation(
             )
             for program in evaluation_scopes(request.program)
         }
+        completed, duplicates = build_scope_inputs(request.courses, scope_results)
+        result = evaluate(rule_bundle, completed, request.thesis_passed, request.topcit_taken)
     except RuleScopeNotFound as exc:
         raise _unsupported(session, request.admission_year) from exc
-    except (LookupError, CatalogValidationError) as exc:
-        # 범위는 있는데 규칙·카탈로그 데이터가 불완전하거나 모순이다.
+    except (InvalidRuleDataError, CatalogValidationError) as exc:
+        # 범위는 있는데 규칙·카탈로그 데이터가 불완전하거나 모순이다. 그 밖의 예외(코드 버그)는
+        # 삼키지 않고 그대로 전파한다.
         raise _invalid_rule_data() from exc
-    completed, duplicates = build_scope_inputs(request.courses, scope_results)
-    result = evaluate(rule_bundle, completed, request.thesis_passed, request.topcit_taken)
     result.excluded_courses = sorted(
         [*result.excluded_courses, *duplicates], key=lambda notice: notice.index
     )

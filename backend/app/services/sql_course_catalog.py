@@ -12,6 +12,7 @@ for this scope's requirement. A linked ``SourceDocument`` alone is not proof
 of human review, and a NULL ``source_id`` means unconfirmed evidence.
 """
 
+from pydantic import ValidationError
 from sqlalchemy import and_, select, union
 from sqlalchemy.orm import Session
 
@@ -37,6 +38,7 @@ from app.schemas.course_matching import (
 from app.schemas.course_matching import (
     CourseEquivalence as EquivalenceDTO,
 )
+from app.services.rule_errors import InvalidRuleDataError
 from app.services.rule_repository import RuleScopeNotFound
 
 VERIFIED = "verified"
@@ -115,32 +117,35 @@ class SqlCourseCatalogRepository:
             .order_by(CourseAlias.alias_id)
         ).all()
 
-        return CourseCatalogSnapshot(
-            courses=[
-                CatalogCourse(
-                    course_id=to_catalog_id(course.course_id),
-                    course_code=course.course_code,
-                    name=course.name,
-                )
-                for course in courses
-            ],
-            aliases=[
-                AliasDTO(
-                    name=alias.alias_name,
-                    course_id=to_catalog_id(alias.course_id),
-                    source_document=url,
-                )
-                for alias, url in alias_rows
-            ],
-            equivalences=[
-                EquivalenceDTO(
-                    source_course_id=to_catalog_id(relation.completed_course_id),
-                    target_course_id=to_catalog_id(relation.recognized_course_id),
-                    source_document=url,
-                )
-                for relation, url in equivalence_rows
-            ],
-        )
+        try:
+            return CourseCatalogSnapshot(
+                courses=[
+                    CatalogCourse(
+                        course_id=to_catalog_id(course.course_id),
+                        course_code=course.course_code,
+                        name=course.name,
+                    )
+                    for course in courses
+                ],
+                aliases=[
+                    AliasDTO(
+                        name=alias.alias_name,
+                        course_id=to_catalog_id(alias.course_id),
+                        source_document=url,
+                    )
+                    for alias, url in alias_rows
+                ],
+                equivalences=[
+                    EquivalenceDTO(
+                        source_course_id=to_catalog_id(relation.completed_course_id),
+                        target_course_id=to_catalog_id(relation.recognized_course_id),
+                        source_document=url,
+                    )
+                    for relation, url in equivalence_rows
+                ],
+            )
+        except ValidationError as exc:
+            raise InvalidRuleDataError("Invalid catalog rows") from exc
 
     def _requirement_id(self, admission_year: int) -> int:
         requirement_id = self._session.scalar(
