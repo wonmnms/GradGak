@@ -10,9 +10,17 @@ from app.schemas.evaluation import (
     EvaluationCourse,
 )
 from app.services import evaluation
-from app.services.evaluation import evaluate
+from app.services.evaluation import evaluate as evaluate_by_program
 
 TOTAL = 20  # 가상 총학점
+
+
+def evaluate(bundle, completed, thesis_passed, topcit_taken):
+    """리스트면 모든 프로그램에 같은 과목을 준다(엔진은 프로그램별 Mapping만 받는다)."""
+    if not isinstance(completed, dict):
+        completed = {row["program"]: completed for row in bundle["program_results"]}
+    return evaluate_by_program(bundle, completed, thesis_passed, topcit_taken)
+
 
 # 가상 과목: 1~5 세부전공필수 그룹, 11~12 단일 필수, 21~22 택1 그룹, 90 일반 과목
 SUB_MAJOR_COURSES = [
@@ -461,3 +469,112 @@ def test_result_serializes_to_api_shape():
         "course_groups",
         "missing_required_courses",
     }
+
+
+# --- 프로그램별 입력·대체 관계·모호 사유 -------------------------------------------
+
+
+def test_per_program_input_uses_own_scope_courses():
+    bundle = make_bundle("engineering", "software")
+    # 공학 범위에서만 가상필수A(11)로 매칭, 일반 범위에서는 매칭 실패
+    by_program = {
+        "engineering": courses((11, 3, "A0")),
+        "general": [
+            EvaluationCourse(index=0, course_id=None, name="가상과목0", credits=3, grade="A0")
+        ],
+    }
+    result = evaluate(bundle, by_program, True, True)
+    eng, general = result.program_results
+    assert {g.id: g.status for g in eng.course_groups}["required_a"] == STATUS_MET
+    assert general.course_groups == []
+    assert [n.reason for n in result.unmatched_courses] == [
+        f"(일반프로그램 기준) {evaluation.UNMATCHED_REASON}"
+    ]
+
+
+def test_equivalent_course_ids_complete_group_without_extra_credits():
+    # 90번 과목이 verified 관계로 필수 11번을 대신한다. 학점은 90번 기준 3점뿐이다.
+    completed = [
+        EvaluationCourse(
+            index=0,
+            course_id=90,
+            name="가상옛과목",
+            credits=3,
+            grade="A0",
+            equivalent_course_ids=[11],
+        )
+    ]
+    eng = evaluate(make_bundle("engineering", "software"), completed, True, True).program_results[0]
+    assert {g.id: g.status for g in eng.course_groups}["required_a"] == STATUS_MET
+    assert eng.total.earned == 3
+
+
+def test_equivalence_is_not_applied_for_failed_grade():
+    completed = [
+        EvaluationCourse(
+            index=0,
+            course_id=90,
+            name="가상옛과목",
+            credits=3,
+            grade="F",
+            equivalent_course_ids=[11],
+        )
+    ]
+    eng = evaluate(make_bundle("engineering", "software"), completed, True, True).program_results[0]
+    assert {g.id: g.status for g in eng.course_groups}["required_a"] == STATUS_UNMET
+
+
+def test_ambiguous_reason_differs_from_unmatched():
+    completed = [
+        EvaluationCourse(
+            index=0, course_id=None, name="가상모호", credits=3, grade="A0", ambiguous=True
+        ),
+        EvaluationCourse(index=1, course_id=None, name="가상없음", credits=3, grade="A0"),
+    ]
+    result = evaluate(make_bundle("general", "software"), completed, True, True)
+    assert [n.reason for n in result.unmatched_courses] == [
+        evaluation.AMBIGUOUS_REASON,
+        evaluation.UNMATCHED_REASON,
+    ]
+
+
+def test_equivalent_target_fills_only_one_group_slot():
+    # 그룹 {1,2}에서 min 2. 과목 1만 이수하고 1→2 대체 관계가 있어도 1칸만 채운다.
+    bundle = make_bundle("general", "ai")
+    bundle["common_requirements"][0]["courses"] = SUB_MAJOR_COURSES[:2]
+    bundle["common_requirements"][0]["min_courses"] = 2
+    completed = [
+        EvaluationCourse(
+            index=0,
+            course_id=1,
+            name="가상세부1",
+            credits=3,
+            grade="A0",
+            equivalent_course_ids=[2, 3],
+        )
+    ]
+    group = common_by_id(evaluate(bundle, completed, True, True))["sub_major_required"]
+    assert group.status == STATUS_UNMET
+    assert group.completed_count == 1
+
+
+def test_original_and_equivalent_both_kept_warns():
+    completed = [
+        EvaluationCourse(
+            index=0,
+            course_id=90,
+            name="가상옛과목",
+            credits=3,
+            grade="A0",
+            equivalent_course_ids=[11],
+        ),
+        EvaluationCourse(index=1, course_id=11, name="가상필수A", credits=3, grade="A0"),
+    ]
+    result = evaluate(make_bundle("general", "software"), completed, True, True)
+    assert result.program_results[0].total.earned == 6
+    assert sum("대체·인정 관계" in w for w in result.warnings) == 1
+
+
+def test_missing_program_input_is_rejected():
+    with pytest.raises(ValueError, match="missing programs"):
+        evaluate_by_program(make_bundle("engineering", "ai"), {"general": []}, True, True)

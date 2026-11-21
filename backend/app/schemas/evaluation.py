@@ -1,21 +1,42 @@
 """졸업요건 판정 엔진의 입력·출력 스키마.
 
 입력 `EvaluationCourse`는 과목 매칭이 끝난 과목의 최소 형태다. 매칭 결과를 이 형태로
-바꾸는 일은 `/evaluate` 라우터(#18)가 한다. 출력은 docs/api-spec.md의 `POST /evaluate`
-응답 200 형식을 따르되, 아직 명세에 없는 값·필드는 아래 주석에 표시했다.
+바꾸는 일은 `app/services/evaluation_input.py`가 한다.
+출력은 docs/api-spec.md의 `POST /evaluate` 응답 200 형식을 따른다.
 """
 
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.transcripts import Course, Year
+
 STATUS_MET = "met"
 STATUS_UNMET = "unmet"
-# api-spec의 status 값은 met/unmet 뿐이다. 데이터가 없어 판정할 수 없는 상태를 나타내는
-# 값은 명세에 아직 없으므로 임시 상수로만 둔다(api-spec 변경 필요).
+# 데이터가 없어 판정할 수 없는 상태(api-spec에 정의됨).
 STATUS_PENDING = "pending"
 
 Status = Literal["met", "unmet", "pending"]
+
+
+class EvaluateRequest(BaseModel):
+    """`POST /evaluate` 요청 (docs/api-spec.md)."""
+
+    admission_year: Year
+    program: Literal["engineering", "general"]
+    sub_major: Literal["software", "ai"]
+    thesis_passed: bool
+    topcit_taken: bool
+    courses: list[Course]
+
+
+class EvaluateErrorDetail(BaseModel):
+    code: Literal["UNSUPPORTED_ADMISSION_YEAR", "UNSUPPORTED_SCOPE", "INVALID_RULE_DATA"]
+    message: str
+
+
+class EvaluateErrorResponse(BaseModel):
+    detail: EvaluateErrorDetail
 
 
 class EvaluationCourse(BaseModel):
@@ -29,6 +50,13 @@ class EvaluationCourse(BaseModel):
     grade: str | None = Field(description="성적 (PDF 표기 그대로). None은 수강 예정")
     category: str | None = Field(default=None, description="이수구분 (PDF 표기 그대로)")
     is_retake: bool = False
+    ambiguous: bool = Field(
+        default=False, description="course_id=None인 이유가 매칭 실패가 아니라 후보 여러 개(모호)"
+    )
+    equivalent_course_ids: list[int] = Field(
+        default_factory=list,
+        description="verified 대체·인정 대상 course_id(단방향, 연쇄 없음). 학점은 세지 않는다",
+    )
 
 
 class GroupCourseResult(BaseModel):
@@ -66,7 +94,7 @@ class CategoryResult(BaseModel):
     earned: float | None
     remaining: float | None
     status: Status
-    # api-spec에 없는 필드: 판정 보류 사유 (api-spec 변경 필요)
+    # 판정 보류 사유 (api-spec 참고)
     reason: str | None = None
 
 
@@ -97,7 +125,6 @@ class EvaluationResult(BaseModel):
     common_requirements: list[CourseGroupResult | NonCreditResult]
     program_results: list[ProgramResult]
     unmatched_courses: list[CourseNotice]
-    # 이하 api-spec에 없는 필드 (api-spec 변경 필요)
     excluded_courses: list[CourseNotice] = Field(
         default_factory=list, description="성적·재수강 정책으로 학점·이수에서 제외한 과목"
     )

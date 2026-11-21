@@ -1,6 +1,7 @@
 """DB의 규칙을 백엔드에 제공한다. 졸업 판정 계산이나 API 응답 DTO는 아니다."""
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
+from sqlalchemy.exc import MultipleResultsFound
 
 from app.models import (
     Course,
@@ -10,6 +11,18 @@ from app.models import (
     NonCreditRequirement,
     RequirementCategory,
 )
+from app.services.rule_errors import InvalidRuleDataError
+
+
+class RuleScopeNotFound(LookupError):
+    """요청한 입학년도·프로그램·세부전공의 졸업요건 범위 자체가 없다(데이터 결함이 아님)."""
+
+
+def has_admission_year(session, admission_year) -> bool:
+    """이 입학년도의 졸업요건 범위가 하나라도 있는지. 오류 응답 구분용이며 판정에 쓰지 않는다."""
+    return session.scalar(
+        select(exists().where(GraduationRequirement.admission_year == admission_year))
+    )
 
 
 def get_rule_bundle(session, admission_year, program, sub_major):
@@ -22,15 +35,20 @@ def get_rule_bundle(session, admission_year, program, sub_major):
     common = []
     common_group = None
     for selected_program in programs:
-        requirement = session.execute(
-            select(GraduationRequirement).filter_by(
-                admission_year=admission_year,
-                program=selected_program,
-                sub_major=sub_major,
-            )
-        ).scalar_one_or_none()
+        try:
+            requirement = session.execute(
+                select(GraduationRequirement).filter_by(
+                    admission_year=admission_year,
+                    program=selected_program,
+                    sub_major=sub_major,
+                )
+            ).scalar_one_or_none()
+        except MultipleResultsFound as exc:
+            raise InvalidRuleDataError("Duplicate requirement scope") from exc
         if requirement is None:
-            raise LookupError(f"No rule scope: {admission_year}/{selected_program}/{sub_major}")
+            raise RuleScopeNotFound(
+                f"No rule scope: {admission_year}/{selected_program}/{sub_major}"
+            )
         categories = session.scalars(
             select(RequirementCategory)
             .where(RequirementCategory.requirement_id == requirement.requirement_id)
@@ -46,12 +64,12 @@ def get_rule_bundle(session, admission_year, program, sub_major):
             row.parent_category_id is not None and row.parent_category_id not in category_codes
             for row in categories
         ):
-            raise LookupError("Category parent is outside the selected requirement")
+            raise InvalidRuleDataError("Category parent is outside the selected requirement")
         program_groups = []
         if sub_major == "ai" and not any(
             group.group_code == "sub_major_required" for group in groups
         ):
-            raise LookupError(f"Missing AI course group for {selected_program}")
+            raise InvalidRuleDataError(f"Missing AI course group for {selected_program}")
         for group in groups:
             courses = session.scalars(
                 select(Course)
@@ -60,7 +78,7 @@ def get_rule_bundle(session, admission_year, program, sub_major):
                 .order_by(Course.course_id)
             ).all()
             if len(courses) < group.min_courses:
-                raise LookupError(f"Incomplete course group: {group.group_id}")
+                raise InvalidRuleDataError(f"Incomplete course group: {group.group_id}")
             item = {
                 "code": group.group_code,
                 "label": group.name,
@@ -79,7 +97,7 @@ def get_rule_bundle(session, admission_year, program, sub_major):
             }
             if group.group_code == "sub_major_required":
                 if common_group is not None and common_group != item:
-                    raise LookupError("Conflicting common course group across programs")
+                    raise InvalidRuleDataError("Conflicting common course group across programs")
                 common_group = item
             else:
                 program_groups.append(item)
@@ -103,7 +121,7 @@ def get_rule_bundle(session, admission_year, program, sub_major):
 
     if sub_major == "ai":
         if common_group is None:
-            raise LookupError("Missing AI common course group")
+            raise InvalidRuleDataError("Missing AI common course group")
         common.append(common_group)
     non_credit = session.scalars(
         select(NonCreditRequirement)
@@ -111,7 +129,7 @@ def get_rule_bundle(session, admission_year, program, sub_major):
         .order_by(NonCreditRequirement.code)
     ).all()
     if not {"thesis", "topcit"}.issubset({rule.code for rule in non_credit}):
-        raise LookupError("Missing common non-credit rules")
+        raise InvalidRuleDataError("Missing common non-credit rules")
     common.extend(
         {
             "code": rule.code,
