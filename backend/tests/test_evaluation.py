@@ -312,7 +312,6 @@ def test_unmatched_recognized_course_counts_in_total_with_warning():
     result = evaluate(make_bundle("general", "software"), completed, True, True)
     assert [(n.index, n.name) for n in result.unmatched_courses] == [(0, "가상미매칭")]
     assert result.program_results[0].total.earned == 6
-    assert result.warnings.count(evaluation.UNMATCHED_DEDUP_WARNING) == 1
     assert result.excluded_courses == []
 
 
@@ -324,7 +323,6 @@ def test_unmatched_course_is_not_used_for_groups():
     result = evaluate(make_bundle("general", "ai"), completed, True, True)
     assert common_by_id(result)["sub_major_required"].completed_count == 0
     assert result.program_results[0].total.earned == 6
-    assert result.warnings.count(evaluation.UNMATCHED_DEDUP_WARNING) == 1
 
 
 @pytest.mark.parametrize("grade", ["F", "NP"])
@@ -337,14 +335,67 @@ def test_unmatched_failed_course_is_excluded_from_total(grade):
     assert result.program_results[0].total.earned == 3
     assert [n.index for n in result.unmatched_courses] == [0]
     assert [n.index for n in result.excluded_courses] == [0]
-    assert evaluation.UNMATCHED_DEDUP_WARNING not in result.warnings
 
 
-def test_credit_mismatch_uses_policy_and_warns():
+def test_credit_mismatch_uses_request_credit_and_warns():
     completed = courses((1, 4, "A0"))  # 과목 데이터는 3학점
     result = evaluate(make_bundle("general", "ai"), completed, True, True)
+    assert result.program_results[0].total.earned == 4
+    assert any("학점이 요청" in w for w in result.warnings)
+
+
+def test_credit_source_min_option(monkeypatch):
+    monkeypatch.setattr(evaluation, "CREDIT_SOURCE", "min")
+    result = evaluate(make_bundle("general", "ai"), courses((1, 4, "A0")), True, True)
     assert result.program_results[0].total.earned == 3
     assert any("학점이 요청" in w for w in result.warnings)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+def test_evaluation_course_rejects_non_finite_credits(value):
+    with pytest.raises(ValueError):
+        EvaluationCourse(index=0, course_id=1, name="가상", credits=value, grade="A0")
+
+
+def test_repeated_course_without_retake_mark_counts_both_and_warns():
+    result = evaluate(
+        make_bundle("general", "ai"), courses((90, 3, "A0"), (90, 3, "B0")), True, True
+    )
+    assert result.program_results[0].total.earned == 6
+    assert result.excluded_courses == []
+    assert any("재수강 표시 없이 중복" in w for w in result.warnings)
+
+
+def test_deleted_grade_row_marks_retake():
+    completed = courses((90, 3, "(삭제)"), (90, 3, "A0"), (90, 3, "B0"))
+    result = evaluate(make_bundle("general", "ai"), completed, True, True)
+    assert result.program_results[0].total.earned == 3
+
+
+def test_unmatched_retake_counts_once():
+    completed = [
+        EvaluationCourse(index=0, course_id=None, name="가상 미매칭", credits=3, grade="D0"),
+        EvaluationCourse(
+            index=1, course_id=None, name="가상미매칭", credits=3, grade="A0", is_retake=True
+        ),
+    ]
+    result = evaluate(make_bundle("general", "software"), completed, True, True)
+    assert result.program_results[0].total.earned == 3
+    assert [n.index for n in result.excluded_courses] == [0]
+
+
+def test_unmatched_same_course_code_without_retake_counts_both_and_warns():
+    completed = [
+        EvaluationCourse(
+            index=0, course_id=None, name="가상갑", credits=3, grade="A0", course_code="X1"
+        ),
+        EvaluationCourse(
+            index=1, course_id=None, name="가상을", credits=3, grade="A0", course_code="X1"
+        ),
+    ]
+    result = evaluate(make_bundle("general", "software"), completed, True, True)
+    assert result.program_results[0].total.earned == 6
+    assert any("재수강 표시 없이 중복" in w for w in result.warnings)
 
 
 def test_unknown_catalog_credit_uses_request_credit():

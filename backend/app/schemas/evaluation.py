@@ -25,7 +25,7 @@ class EvaluationCourse(BaseModel):
     course_id: int | None = Field(description="매칭된 courses.course_id. 매칭 실패면 None")
     name: str = Field(description="과목명 (PDF 표기 그대로)")
     course_code: str | None = None
-    credits: float = Field(ge=0, description="요청(PDF)의 학점")
+    credits: float = Field(ge=0, allow_inf_nan=False, description="요청(PDF)의 학점")
     grade: str | None = Field(description="성적 (PDF 표기 그대로). None은 수강 예정")
     category: str | None = Field(default=None, description="이수구분 (PDF 표기 그대로)")
     is_retake: bool = False
