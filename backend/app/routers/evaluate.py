@@ -7,14 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.schemas.evaluation import EvaluateErrorResponse, EvaluateRequest, EvaluationResult
-from app.services.course_matching import match_courses
+from app.services.course_matching import CatalogValidationError, match_courses
 from app.services.evaluation import evaluate
-from app.services.evaluation_input import (
-    evaluation_scopes,
-    merge_scope_matches,
-    to_evaluation_courses,
-)
-from app.services.rule_repository import get_rule_bundle, has_admission_year
+from app.services.evaluation_input import build_scope_inputs, evaluation_scopes
+from app.services.rule_repository import RuleScopeNotFound, get_rule_bundle, has_admission_year
 from app.services.sql_course_catalog import SqlCourseCatalogRepository
 
 router = APIRouter(tags=["evaluate"])
@@ -35,11 +31,21 @@ def _unsupported(session: Session, admission_year: int) -> HTTPException:
     return HTTPException(status_code=400, detail=detail)
 
 
+def _invalid_rule_data() -> HTTPException:
+    # 카탈로그·규칙 데이터 결함. 내부 예외 메시지는 응답에 넣지 않는다.
+    detail = {
+        "code": "INVALID_RULE_DATA",
+        "message": "졸업요건 데이터에 문제가 있어 판정할 수 없습니다. 관리자에게 문의해 주세요.",
+    }
+    return HTTPException(status_code=500, detail=detail)
+
+
 @router.post(
     "/evaluate",
     response_model=EvaluationResult,
     responses={
         400: {"model": EvaluateErrorResponse, "description": "지원하지 않는 입학년도·범위"},
+        500: {"model": EvaluateErrorResponse, "description": "졸업요건 데이터 결함"},
     },
 )
 def evaluate_graduation(
@@ -50,16 +56,23 @@ def evaluate_graduation(
         rule_bundle = get_rule_bundle(
             session, request.admission_year, request.program, request.sub_major
         )
-        scope_results = [
-            match_courses(
+        scope_results = {
+            program: match_courses(
                 request.courses,
                 SqlCourseCatalogRepository(
                     session, program=program, sub_major=request.sub_major
                 ).load_snapshot(request.admission_year),
             )
             for program in evaluation_scopes(request.program)
-        ]
-    except LookupError as exc:
+        }
+    except RuleScopeNotFound as exc:
         raise _unsupported(session, request.admission_year) from exc
-    completed = to_evaluation_courses(request.courses, merge_scope_matches(scope_results))
-    return evaluate(rule_bundle, completed, request.thesis_passed, request.topcit_taken)
+    except (LookupError, CatalogValidationError) as exc:
+        # 범위는 있는데 규칙·카탈로그 데이터가 불완전하거나 모순이다.
+        raise _invalid_rule_data() from exc
+    completed, duplicates = build_scope_inputs(request.courses, scope_results)
+    result = evaluate(rule_bundle, completed, request.thesis_passed, request.topcit_taken)
+    result.excluded_courses = sorted(
+        [*result.excluded_courses, *duplicates], key=lambda notice: notice.index
+    )
+    return result

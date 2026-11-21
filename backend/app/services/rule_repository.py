@@ -12,6 +12,10 @@ from app.models import (
 )
 
 
+class RuleScopeNotFound(LookupError):
+    """요청한 입학년도·프로그램·세부전공의 졸업요건 범위 자체가 없다(데이터 결함이 아님)."""
+
+
 def has_admission_year(session, admission_year) -> bool:
     """이 입학년도의 졸업요건 범위가 하나라도 있는지. 오류 응답 구분용이며 판정에 쓰지 않는다."""
     return session.scalar(
@@ -37,7 +41,9 @@ def get_rule_bundle(session, admission_year, program, sub_major):
             )
         ).scalar_one_or_none()
         if requirement is None:
-            raise LookupError(f"No rule scope: {admission_year}/{selected_program}/{sub_major}")
+            raise RuleScopeNotFound(
+                f"No rule scope: {admission_year}/{selected_program}/{sub_major}"
+            )
         categories = session.scalars(
             select(RequirementCategory)
             .where(RequirementCategory.requirement_id == requirement.requirement_id)

@@ -5,6 +5,7 @@ DB·FastAPI와 무관한 순수 함수다. 규칙 값은 모두 `get_rule_bundle
 판정은 명시적 규칙으로만 하며 AI 추론을 쓰지 않는다.
 """
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from app.schemas.evaluation import (
@@ -40,6 +41,8 @@ CREDIT_SOURCE = "request"
 PENDING_CATEGORY_REASON = "영역 인정 과목 목록이 아직 없어 판정을 보류합니다."
 PENDING_DATA_REASON = "규칙 데이터가 미완성이라 최종 충족으로 판정할 수 없습니다."
 UNMATCHED_REASON = "과목 데이터에서 찾지 못했습니다."
+AMBIGUOUS_REASON = "같은 이름·학수번호의 과목 후보가 여러 개라 하나로 확정하지 못했습니다."
+PROGRAM_LABELS = {"engineering": "공학", "general": "일반"}
 
 # 매칭 실패 과목의 총학점 포함 (사용자 결정, 2026-11-15):
 # 인정 성적이면 매칭 여부와 상관없이 요청 credits로 총학점에 포함한다.
@@ -283,24 +286,24 @@ def _evaluate_program(program: dict, recognized: _Recognized) -> ProgramResult:
     )
 
 
-def evaluate(
-    rule_bundle: dict,
-    completed: list[EvaluationCourse],
-    thesis_passed: bool,
-    topcit_taken: bool,
-) -> EvaluationResult:
-    """rule_bundle(`get_rule_bundle()` 반환값)과 이수과목으로 졸업요건을 판정한다.
+@dataclass
+class _Prepared:
+    """한 프로그램 범위의 매칭 결과로 정리한 인정 과목과 안내."""
 
-    호출 계약: 완전히 같은 중복 행(PDF 중복·입력 실수)은 엔진이 구분하지 못한다. 라우터는
-    매칭 모듈의 `duplicate_inputs`에 해당하는 행을 엔진에 넣기 전에 제외해야 한다.
-    """
+    recognized: _Recognized
+    unmatched: list[CourseNotice]
+    excluded: list[CourseNotice]
+    warnings: list[str]
+
+
+def _prepare(completed: list[EvaluationCourse], catalog: dict[int, int | None]) -> _Prepared:
+    """성적·재수강·학점 정책을 적용해 인정 과목 id와 총학점을 구한다."""
     unmatched, excluded, warnings = [], [], []
     candidates = []
     for course in completed:
         if course.course_id is None:
-            unmatched.append(
-                CourseNotice(index=course.index, name=course.name, reason=UNMATCHED_REASON)
-            )
+            reason = AMBIGUOUS_REASON if course.ambiguous else UNMATCHED_REASON
+            unmatched.append(CourseNotice(index=course.index, name=course.name, reason=reason))
         reason = grade_exclusion_reason(course.grade)
         if reason is not None:
             excluded.append(CourseNotice(index=course.index, name=course.name, reason=reason))
@@ -314,7 +317,6 @@ def evaluate(
     excluded.extend(CourseNotice(index=c.index, name=c.name, reason=r) for c, r in dropped)
     excluded.sort(key=lambda notice: notice.index)
 
-    catalog = _catalog_credits(rule_bundle)
     total_credits = 0.0
     for course in kept:
         if course.course_id is None:
@@ -324,21 +326,93 @@ def evaluate(
         total_credits += credits
         if warning:
             warnings.append(warning)
-    recognized = _Recognized(
-        course_ids={c.course_id for c in kept if c.course_id is not None},
-        total_credits=total_credits,
-    )
+    # 대체·인정 대상은 이수한 것으로 보되 학점은 원래 과목으로 한 번만 센다(위 합계).
+    course_ids = {c.course_id for c in kept if c.course_id is not None}
+    course_ids.update(target for c in kept for target in c.equivalent_course_ids)
+    return _Prepared(_Recognized(course_ids, total_credits), unmatched, excluded, warnings)
+
+
+def _program_label(program: str) -> str:
+    return PROGRAM_LABELS.get(program, program)
+
+
+def _merge_notices(per_program: dict[str, list[CourseNotice]]) -> list[CourseNotice]:
+    """프로그램별 안내를 (index, 사유)로 중복 제거해 합친다.
+
+    일부 프로그램에서만 나온 안내는 사유 앞에 어느 프로그램 기준인지 붙인다.
+    """
+    owners: dict[tuple[int, str], dict[str, CourseNotice]] = {}
+    for program, notices in per_program.items():
+        for notice in notices:
+            owners.setdefault((notice.index, notice.reason), {})[program] = notice
+    merged = []
+    for owner in owners.values():
+        if len(owner) == len(per_program):
+            merged.append(next(iter(owner.values())))
+            continue
+        for program, notice in owner.items():
+            reason = f"({_program_label(program)}프로그램 기준) {notice.reason}"
+            merged.append(notice.model_copy(update={"reason": reason}))
+    merged.sort(key=lambda notice: notice.index)
+    return merged
+
+
+def _merge_warnings(per_program: dict[str, list[str]]) -> list[str]:
+    owners: dict[str, list[str]] = {}
+    for program, warnings in per_program.items():
+        for warning in warnings:
+            if program not in owners.setdefault(warning, []):
+                owners[warning].append(program)
+    merged = []
+    for warning, programs in owners.items():
+        if len(programs) == len(per_program):
+            merged.append(warning)
+        else:
+            labels = "·".join(_program_label(program) for program in programs)
+            merged.append(f"({labels}프로그램 기준) {warning}")
+    return merged
+
+
+def evaluate(
+    rule_bundle: dict,
+    completed: Sequence[EvaluationCourse] | Mapping[str, Sequence[EvaluationCourse]],
+    thesis_passed: bool,
+    topcit_taken: bool,
+) -> EvaluationResult:
+    """rule_bundle(`get_rule_bundle()` 반환값)과 이수과목으로 졸업요건을 판정한다.
+
+    `completed`는 프로그램별 매칭 결과다({"engineering": [...], "general": [...]}). 매칭 범위와
+    verified 대체 관계가 프로그램마다 달라서, 각 프로그램 결과는 자기 범위의 과목으로만
+    판정한다. 공통 요건은 `program_results`의 첫 항목(학생이 요청한 프로그램)의 과목으로
+    판정한다. 리스트를 주면 모든 프로그램에 같은 과목을 쓴다.
+
+    호출 계약: 완전히 같은 중복 행(PDF 중복·입력 실수)은 엔진이 구분하지 못한다. 호출자는
+    매칭 모듈의 `duplicate_inputs`에 해당하는 행을 엔진에 넣기 전에 제외해야 한다
+    (`evaluation_input.build_scope_inputs`가 한다).
+    """
+    programs = [row["program"] for row in rule_bundle["program_results"]]
+    if isinstance(completed, Mapping):
+        by_program = {program: list(completed[program]) for program in programs}
+    else:
+        by_program = {program: list(completed) for program in programs}
+    catalog = _catalog_credits(rule_bundle)
+    prepared = {program: _prepare(rows, catalog) for program, rows in by_program.items()}
 
     inputs = {"thesis_passed": thesis_passed, "topcit_taken": topcit_taken}
+    common_ids = prepared[programs[0]].recognized.course_ids
     common = [
-        _evaluate_group(row, recognized.course_ids)
+        _evaluate_group(row, common_ids)
         if "min_courses" in row
         else _evaluate_non_credit(row, inputs)
         for row in rule_bundle["common_requirements"]
     ]
-    programs = [_evaluate_program(p, recognized) for p in rule_bundle["program_results"]]
+    results = [
+        _evaluate_program(p, prepared[p["program"]].recognized)
+        for p in rule_bundle["program_results"]
+    ]
 
-    statuses = [row.status for row in common] + [p.status for p in programs]
+    warnings = _merge_warnings({program: item.warnings for program, item in prepared.items()})
+    statuses = [row.status for row in common] + [p.status for p in results]
     pending_data = list(rule_bundle.get("pending_data") or [])
     if not rule_bundle.get("data_complete", False):
         statuses.append(STATUS_PENDING)
@@ -347,9 +421,9 @@ def evaluate(
     return EvaluationResult(
         graduation_status=_combine(statuses),
         common_requirements=common,
-        program_results=programs,
-        unmatched_courses=unmatched,
-        excluded_courses=excluded,
+        program_results=results,
+        unmatched_courses=_merge_notices({p: item.unmatched for p, item in prepared.items()}),
+        excluded_courses=_merge_notices({p: item.excluded for p, item in prepared.items()}),
         pending_data=pending_data,
         warnings=warnings,
     )

@@ -461,3 +461,70 @@ def test_result_serializes_to_api_shape():
         "course_groups",
         "missing_required_courses",
     }
+
+
+# --- 프로그램별 입력·대체 관계·모호 사유 -------------------------------------------
+
+
+def test_per_program_input_uses_own_scope_courses():
+    bundle = make_bundle("engineering", "software")
+    # 공학 범위에서만 가상필수A(11)로 매칭, 일반 범위에서는 매칭 실패
+    by_program = {
+        "engineering": courses((11, 3, "A0")),
+        "general": [
+            EvaluationCourse(index=0, course_id=None, name="가상과목0", credits=3, grade="A0")
+        ],
+    }
+    result = evaluate(bundle, by_program, True, True)
+    eng, general = result.program_results
+    assert {g.id: g.status for g in eng.course_groups}["required_a"] == STATUS_MET
+    assert general.course_groups == []
+    assert [n.reason for n in result.unmatched_courses] == [
+        f"(일반프로그램 기준) {evaluation.UNMATCHED_REASON}"
+    ]
+
+
+def test_equivalent_course_ids_complete_group_without_extra_credits():
+    # 90번 과목이 verified 관계로 필수 11번을 대신한다. 학점은 90번 기준 3점뿐이다.
+    completed = [
+        EvaluationCourse(
+            index=0,
+            course_id=90,
+            name="가상옛과목",
+            credits=3,
+            grade="A0",
+            equivalent_course_ids=[11],
+        )
+    ]
+    eng = evaluate(make_bundle("engineering", "software"), completed, True, True).program_results[0]
+    assert {g.id: g.status for g in eng.course_groups}["required_a"] == STATUS_MET
+    assert eng.total.earned == 3
+
+
+def test_equivalence_is_not_applied_for_failed_grade():
+    completed = [
+        EvaluationCourse(
+            index=0,
+            course_id=90,
+            name="가상옛과목",
+            credits=3,
+            grade="F",
+            equivalent_course_ids=[11],
+        )
+    ]
+    eng = evaluate(make_bundle("engineering", "software"), completed, True, True).program_results[0]
+    assert {g.id: g.status for g in eng.course_groups}["required_a"] == STATUS_UNMET
+
+
+def test_ambiguous_reason_differs_from_unmatched():
+    completed = [
+        EvaluationCourse(
+            index=0, course_id=None, name="가상모호", credits=3, grade="A0", ambiguous=True
+        ),
+        EvaluationCourse(index=1, course_id=None, name="가상없음", credits=3, grade="A0"),
+    ]
+    result = evaluate(make_bundle("general", "software"), completed, True, True)
+    assert [n.reason for n in result.unmatched_courses] == [
+        evaluation.AMBIGUOUS_REASON,
+        evaluation.UNMATCHED_REASON,
+    ]

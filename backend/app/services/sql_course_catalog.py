@@ -37,6 +37,7 @@ from app.schemas.course_matching import (
 from app.schemas.course_matching import (
     CourseEquivalence as EquivalenceDTO,
 )
+from app.services.rule_repository import RuleScopeNotFound
 
 VERIFIED = "verified"
 
@@ -149,7 +150,7 @@ class SqlCourseCatalogRepository:
         )
         if requirement_id is None:
             # Never substitute another admission year or program.
-            raise LookupError(
+            raise RuleScopeNotFound(
                 f"No requirement scope: {admission_year}/{self._program}/{self._sub_major}"
             )
         return requirement_id
