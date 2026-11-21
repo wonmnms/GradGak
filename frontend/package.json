@@ -12,6 +12,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint .",
     "test:results": "node --experimental-strip-types --test tests/results.test.mjs",
+    "test:api": "node --experimental-strip-types --test tests/api.test.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -b --pretty false"
