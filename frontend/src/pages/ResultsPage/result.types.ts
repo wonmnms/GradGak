@@ -1,60 +1,22 @@
-// docs/api-spec.md (2026-10-29)의 /evaluate 응답을 소비하는 결과 화면 경계 타입입니다.
-// 공통 API 타입/호출 함수(#22)가 추가되면 이 타입을 해당 모듈의 import로 대체합니다.
-export type { DraftProgram as Program } from '../../context/program';
-import type { DraftProgram as Program } from '../../context/program';
+// /evaluate 응답 타입은 공통 API 타입(src/types/api.ts, #22)을 그대로 씁니다.
+// 결과 화면에서 쓰던 이름은 별칭으로 유지하고, 화면 전용 타입만 여기에 둡니다.
+export type {
+  Program,
+  SubMajor,
+  Status as ResultStatus,
+  CreditResult as CreditRequirement,
+  CategoryResult as CreditCategory,
+  NonCreditResult as StatusRequirement,
+  GroupCourseResult as RequirementCourse,
+  CourseGroupResult as CountRequirement,
+  CommonRequirement,
+  MissingCourse,
+  ProgramResult,
+  CourseNotice,
+  CourseNotice as UnmatchedCourse,
+  EvaluationResult,
+} from '../../types/api';
 
-export type SubMajor = 'software' | 'ai';
-export type ResultStatus = 'met' | 'unmet';
-export type MockScenario = 'unmet' | 'met' | 'review' | 'program-difference' | 'thesis-unmet';
-
-export interface CreditRequirement {
-  required: number;
-  earned: number;
-  remaining: number;
-  status: ResultStatus;
-}
-export interface CreditCategory extends CreditRequirement {
-  id: string;
-  label: string;
-}
-export interface StatusRequirement {
-  id: string;
-  label: string;
-  status: ResultStatus;
-}
-export interface RequirementCourse {
-  course_code: string | null;
-  name: string;
-  completed: boolean;
-}
-export interface CountRequirement extends StatusRequirement {
-  required_count: number;
-  completed_count: number;
-  courses: RequirementCourse[];
-}
-export type CommonRequirement = StatusRequirement | CountRequirement;
-export interface MissingCourse {
-  course_code: string | null;
-  name: string;
-  credits: number;
-  category: string;
-}
-export interface ProgramResult {
-  program: Program;
-  status: ResultStatus;
-  total: CreditRequirement;
-  categories: CreditCategory[];
-  course_groups: CountRequirement[];
-  missing_required_courses: MissingCourse[];
-}
-export interface UnmatchedCourse {
-  index: number;
-  name: string;
-  reason: string;
-}
-export interface EvaluationResult {
-  graduation_status: ResultStatus;
-  common_requirements: CommonRequirement[];
-  program_results: ProgramResult[];
-  unmatched_courses: UnmatchedCourse[];
-}
+/** 가상 응답 예시. pending은 지금(2024 규칙 데이터 미완성) 서버가 실제로 내는 형태입니다. */
+export type MockScenario =
+  'pending' | 'unmet' | 'met' | 'review' | 'program-difference' | 'thesis-unmet';

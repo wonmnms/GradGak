@@ -114,8 +114,28 @@
 .unmet {
   color: var(--color-text);
 }
-.review {
+.review,
+.pending {
   color: var(--result-review);
+}
+.reason {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+.noticeList ul {
+  padding-left: 20px;
+  margin: 0;
+}
+.noticeList li {
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.noticeList p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
 }
 .total {
   margin: 24px 0 12px;
@@ -175,6 +195,15 @@
 .creditTable thead th {
   color: var(--color-text-muted);
   font-weight: 400;
+  white-space: nowrap;
+}
+.creditTable td {
+  white-space: nowrap;
+}
+.emptyPending {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  padding: 16px 0;
 }
 .creditTable th:first-child {
   text-align: left;
