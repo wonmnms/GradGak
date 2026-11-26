@@ -35,7 +35,10 @@ export default function UploadPage() {
     setError('');
     setFile(null);
     if (!selected) return;
-    if (!selected.name.toLowerCase().endsWith('.pdf') || (selected.type && selected.type !== 'application/pdf')) {
+    if (
+      !selected.name.toLowerCase().endsWith('.pdf') ||
+      (selected.type && selected.type !== 'application/pdf')
+    ) {
       setError('PDF 형식의 KLAS 이수내역 파일만 선택할 수 있습니다.');
       event.target.value = '';
       return;
@@ -62,7 +65,12 @@ export default function UploadPage() {
         setError(errorMessage(response.status, body));
         return;
       }
-      if (!body || typeof body !== 'object' || !('courses' in body) || !Array.isArray(body.courses)) {
+      if (
+        !body ||
+        typeof body !== 'object' ||
+        !('courses' in body) ||
+        !Array.isArray(body.courses)
+      ) {
         setError('서버의 응답 형식이 올바르지 않습니다. 관리자에게 문의해 주세요.');
         return;
       }
@@ -81,7 +89,9 @@ export default function UploadPage() {
       <div className={styles.intro}>
         <p className={styles.eyebrow}>STEP 01 / 이수내역 등록</p>
         <h1>KLAS 이수내역 업로드</h1>
-        <p className={styles.muted}>이수내역 PDF를 업로드하면 과목을 추출하고, 다음 단계에서 직접 확인할 수 있습니다.</p>
+        <p className={styles.muted}>
+          이수내역 PDF를 업로드하면 과목을 추출하고, 다음 단계에서 직접 확인할 수 있습니다.
+        </p>
       </div>
       <form onSubmit={onSubmit}>
         <section className={styles.card} aria-labelledby="upload-title">
@@ -92,14 +102,50 @@ export default function UploadPage() {
             </div>
             <span className={styles.badge}>PDF · 최대 10 MiB</span>
           </div>
-          <input ref={fileRef} className={styles.hiddenFile} id="transcript-file" type="file" accept=".pdf,application/pdf" onChange={onFileChange} disabled={busy} aria-describedby="file-help" />
+          <input
+            ref={fileRef}
+            className={styles.hiddenFile}
+            id="transcript-file"
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={onFileChange}
+            disabled={busy}
+            aria-describedby="file-help"
+          />
           <label htmlFor="transcript-file" className={styles.dropzone}>
-            <span className={styles.fileIcon} aria-hidden="true">↑</span>
+            <span className={styles.fileIcon} aria-hidden="true">
+              ↑
+            </span>
             <strong>{file ? file.name : '클릭해서 PDF 파일 선택하기'}</strong>
-            <span id="file-help">{file ? `${(file.size / 1024 / 1024).toFixed(2)} MiB · 선택됨` : '확장자 .pdf · 최대 10 MiB'}</span>
+            <span id="file-help">
+              {file
+                ? `${(file.size / 1024 / 1024).toFixed(2)} MiB · 선택됨`
+                : '확장자 .pdf · 최대 10 MiB'}
+            </span>
           </label>
-          {file && <button className={styles.remove} type="button" disabled={busy} onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ''; }}>선택 취소</button>}
-          {error && <div className={styles.error} role="alert"><strong>업로드 실패</strong><p>{error}</p><p>KLAS의 이수내역 페이지에서 텍스트를 선택할 수 있는 원본 PDF를 내려받아 주세요. 화면 캡처나 이미지 PDF는 지원하지 않습니다.</p></div>}
+          {file && (
+            <button
+              className={styles.remove}
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setFile(null);
+                if (fileRef.current) fileRef.current.value = '';
+              }}
+            >
+              선택 취소
+            </button>
+          )}
+          {error && (
+            <div className={styles.error} role="alert">
+              <strong>업로드 실패</strong>
+              <p>{error}</p>
+              <p>
+                KLAS의 이수내역 페이지에서 텍스트를 선택할 수 있는 원본 PDF를 내려받아 주세요. 화면
+                캡처나 이미지 PDF는 지원하지 않습니다.
+              </p>
+            </div>
+          )}
         </section>
         <section className={styles.info} aria-labelledby="upload-info-title">
           <h2 id="upload-info-title">업로드 전 확인</h2>
@@ -110,8 +156,16 @@ export default function UploadPage() {
           </ul>
         </section>
         <div className={styles.actions}>
-          <span className={styles.muted} aria-live="polite">{busy ? 'PDF를 분석하고 있습니다…' : file ? '파일이 준비되었습니다.' : 'PDF 파일을 먼저 선택해 주세요.'}</span>
-          <Button type="submit" disabled={!file || busy}>{busy ? '분석 중…' : '이수내역 분석하기 →'}</Button>
+          <span className={styles.muted} aria-live="polite">
+            {busy
+              ? 'PDF를 분석하고 있습니다…'
+              : file
+                ? '파일이 준비되었습니다.'
+                : 'PDF 파일을 먼저 선택해 주세요.'}
+          </span>
+          <Button type="submit" disabled={!file || busy}>
+            {busy ? '분석 중…' : '이수내역 분석하기 →'}
+          </Button>
         </div>
       </form>
     </div>
