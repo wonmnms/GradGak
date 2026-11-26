@@ -4,6 +4,8 @@ import {
   formatCredit,
   getResultSummary,
   hasCourseCount,
+  isMissingListUnsettled,
+  progressLabel,
   remainingLabel,
   statusLabels,
 } from './results.presentation';
@@ -91,7 +93,7 @@ function ProgramCard({ result }: { result: ProgramResult }) {
         <span style={{ width: percent + '%' }} />
       </div>
       <div className={styles.progressLabels}>
-        <span>총학점 기준 {percent}% 이수</span>
+        <span>{progressLabel(total)}</span>
         <span>
           {remainingLabel(total)} · 총학점 {statusLabels[total.status]}
         </span>
@@ -176,7 +178,8 @@ export default function ResultsView({
         {summary.needsReview ? (
           <p>
             서버 판정은 '{statusLabels[result.graduation_status]}'이지만, 과목 데이터와 매칭되지
-            않아 판정에서 빠진 과목이 있습니다. 실제 졸업 가능 여부를 확정하는 안내가 아닙니다.
+            않아 과목·그룹 판정에서 빠진 과목이 있습니다(인정 성적이면 총학점에는 포함). 실제 졸업
+            가능 여부를 확정하는 안내가 아닙니다.
           </p>
         ) : (
           <p>{summaryDescriptions[result.graduation_status]}</p>
@@ -196,8 +199,8 @@ export default function ResultsView({
         <section className={styles.warningPanel} aria-labelledby="unmatched-title">
           <h2 id="unmatched-title">확인이 필요한 과목 {result.unmatched_courses.length}개</h2>
           <p>
-            과목 데이터와 매칭되지 않아 판정에서 빠진 과목입니다. 검수 화면에서 과목명과 학수번호를
-            확인해 주세요.
+            과목 데이터와 매칭되지 않아 과목·그룹 판정에서 빠진 과목입니다. 인정 성적이면 총학점에는
+            포함됩니다. 검수 화면에서 과목명과 학수번호를 확인해 주세요.
           </p>
           <NoticeList items={result.unmatched_courses} />
           <Button variant="secondary" onClick={onEdit}>
@@ -244,12 +247,13 @@ export default function ResultsView({
             <section key={program.program} aria-labelledby={program.program + '-missing'}>
               <h3 id={program.program + '-missing'}>{programTitles[program.program]}</h3>
               {program.missing_required_courses.length === 0 ? (
-                program.status === 'pending' ? (
+                isMissingListUnsettled(program, result) ? (
                   <p className={styles.emptyPending}>
-                    응답에 미이수 필수과목이 없습니다. 판정 보류 상태라 확정된 결과는 아닙니다.
+                    응답에 미이수 필수과목이 없습니다. 일부 요건이 판정 보류 상태라 확정된 결과는
+                    아닙니다.
                   </p>
                 ) : (
-                  <p className={styles.empty}>이 예시에는 미이수 필수과목이 없습니다.</p>
+                  <p className={styles.empty}>미이수 필수과목이 없습니다.</p>
                 )
               ) : (
                 <ul className={styles.courseList}>

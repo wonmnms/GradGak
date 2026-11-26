@@ -19,4 +19,4 @@ export type {
 
 /** 가상 응답 예시. pending은 지금(2024 규칙 데이터 미완성) 서버가 실제로 내는 형태입니다. */
 export type MockScenario =
-  'pending' | 'unmet' | 'met' | 'review' | 'program-difference' | 'thesis-unmet';
+  'pending' | 'pending-unmet' | 'unmet' | 'met' | 'review' | 'program-difference' | 'thesis-unmet';

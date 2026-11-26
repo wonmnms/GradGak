@@ -7,10 +7,20 @@ import {
   formatCredit,
   getResultSummary,
   hasCourseCount,
+  isMissingListUnsettled,
   parseSubMajor,
+  progressLabel,
   remainingLabel,
 } from '../src/pages/ResultsPage/results.presentation.ts';
-const scenarios = ['pending', 'unmet', 'met', 'review', 'program-difference', 'thesis-unmet'];
+const scenarios = [
+  'pending',
+  'pending-unmet',
+  'unmet',
+  'met',
+  'review',
+  'program-difference',
+  'thesis-unmet',
+];
 
 test('빈 값과 알 수 없는 프로그램은 공학으로 추정하지 않는다', () => {
   for (const value of ['', '   ', 'unknown', '일반x']) assert.equal(parseProgram(value), null);
@@ -155,7 +165,7 @@ test('모든 fixture 조합의 판정·학점·선택 개수가 일관된다', (
         ];
         for (const r of result.program_results) {
           statuses.push(r.status, r.total.status, ...r.categories.map((c) => c.status));
-          const decided = r.categories.every((c) => c.required !== null && c.earned !== null);
+          const decided = r.categories.every((c) => c.earned !== null && c.remaining !== null);
           if (decided)
             for (const key of ['required', 'earned', 'remaining'])
               assert.equal(
@@ -163,7 +173,8 @@ test('모든 fixture 조합의 판정·학점·선택 개수가 일관된다', (
                 r.total[key],
               );
           for (const credit of [r.total, ...r.categories])
-            if (credit.required === null) assert.equal(credit.status, 'pending');
+            if (credit.earned === null || credit.remaining === null)
+              assert.equal(credit.status, 'pending');
             else assert.equal(credit.remaining, Math.max(0, credit.required - credit.earned));
         }
         assert.equal(
@@ -211,7 +222,10 @@ test('판정 보류 예시는 지금 서버처럼 최종 pending과 보류 사�
     assert.equal(program.status, 'pending');
     for (const category of program.categories) {
       assert.equal(category.status, 'pending');
-      assert.equal(category.required, null);
+      // 서버처럼 required는 숫자, earned·remaining만 null
+      assert.equal(typeof category.required, 'number');
+      assert.equal(category.earned, null);
+      assert.equal(category.remaining, null);
       assert.ok(category.reason);
     }
   }
@@ -247,4 +261,30 @@ test('제외 과목은 요청 index와 사유를 그대로 전달한다', () => 
     [3],
   );
   assert.match(result.excluded_courses[0].reason, /F/);
+});
+test('총학점이 부족하면 영역이 보류여도 프로그램은 unmet이고, 빈 미이수 목록을 확정하지 않는다', () => {
+  const result = getMockResults('pending-unmet', 'engineering', 'ai');
+  for (const program of result.program_results) {
+    assert.equal(program.status, 'unmet');
+    assert.equal(program.total.earned, 100);
+    assert.equal(program.missing_required_courses.length, 0);
+    assert.equal(isMissingListUnsettled(program, result), true);
+  }
+  assert.equal(result.graduation_status, 'unmet');
+});
+test('보류 영역도 pending_data도 없을 때만 미이수 목록을 확정으로 본다', () => {
+  const met = getMockResults('met', 'general', 'software');
+  assert.equal(isMissingListUnsettled(met.program_results[0], met), false);
+  const withPendingData = { ...met, pending_data: ['something'] };
+  assert.equal(isMissingListUnsettled(met.program_results[0], withPendingData), true);
+});
+test('총학점 요구·이수가 null이면 이수율을 0%가 아니라 —로 표시한다', () => {
+  assert.equal(
+    progressLabel({ required: null, earned: 98, remaining: null, status: 'pending' }),
+    '총학점 이수율 —',
+  );
+  assert.equal(
+    progressLabel({ required: 130, earned: 65, remaining: 65, status: 'unmet' }),
+    '총학점 기준 50% 이수',
+  );
 });
