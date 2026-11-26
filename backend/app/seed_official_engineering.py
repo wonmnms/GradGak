@@ -1,9 +1,10 @@
-"""원본 대조된 공학 필수 이수·캡스톤 택1·수학/과학 최소 학점과 일반 캡스톤 택1만 적재한다.
+"""원본 대조된 공학 필수 이수·캡스톤 택1·수학/과학 최소 학점을 적재한다.
 
 공학프로그램: 학부 졸업요건 안내의 공학 표 근거로 필수 이수 5과목, 캡스톤 택1,
 수학·기초과학 하위 학점과 설계의 부모 영역을 저장한다.
-일반프로그램: 이수내규 제6조②(캡스톤설계 심사 통과)를 공학과 같은 캡스톤 택1 그룹으로
-저장한다. 공학 필수 이수 5과목과 수학·과학 하위 조건은 일반에 넣지 않는다.
+일반프로그램: 과목 그룹을 만들지 않는다. 이수내규 제2장 제6조②의 캡스톤설계 심사 통과는
+공통 비학점 요건 졸업논문(작품) '가' 판정(thesis)으로 반영된 것으로 보고,
+그 근거만 이수내규의 requirement_sources 기록으로 남긴다.
 """
 
 from datetime import date
@@ -34,23 +35,17 @@ REQUIRED_COURSES = (
     ("required_discrete_math", "이산수학"),
 )
 CAPSTONE_COURSES = ("산학협력캡스톤설계1", "산학협력캡스톤설계2")
-CAPSTONE_GROUP_CODE = "required_capstone"
-CAPSTONE_GROUP_NAME = "산학협력캡스톤설계1·2 중 1과목"
 
-# 일반프로그램 캡스톤 그룹의 근거. 원용 2026-11-26 원문 확인.
 BYLAW_URL = "https://cs.kw.ac.kr/engineering_certify/complete_bylaw.php"
 BYLAW_RETRIEVED_ON = date(2026, 11, 26)
+BYLAW_TITLE = "컴퓨터소프트웨어 프로그램 이수내규(2024.7.15 개정)"
+BYLAW_NOTE = "컴퓨터소프트웨어 프로그램 이수내규(2024.7.15 개정). 원용이 2026-11-26 조회·확인."
+BYLAW_LOCATOR = "제2장 일반 프로그램 제6조② / 제1장 제3조③"
 BYLAW_REVIEWER = "원용"
-BYLAW_NOTE = (
-    "원용이 2026-11-26 제2장 일반 프로그램 제6조②('캡스톤설계 심사를 통과하여야 한다')와 "
-    "제3조③(캡스톤설계 교과목 운영)을 직접 확인함. 이 시드는 이 자료를 일반프로그램 "
-    "캡스톤 그룹에만 사용함."
-)
 BYLAW_REVIEW_NOTE = (
-    "검증 범위: 일반프로그램 캡스톤 택1 그룹에 한정. 원문은 '캡스톤설계 심사 통과'만 "
-    "규정하며 산학협력캡스톤설계1·2 과목명 택1은 학부 졸업요건 안내의 공학 표에만 직접 "
-    "기재됨. 일반 그룹의 과목 매핑은 제6조②·제3조③과 확인자(원용, 재학생)의 확인에 근거. "
-    "졸업논문(작품) '가' 판정은 별도 비학점 요건으로 유지."
+    "제6조② 캡스톤설계 심사 통과는 공통 비학점 요건 졸업논문(작품) '가' 판정(thesis)으로 "
+    "반영. 일반 교과과정에서 산학협력캡스톤설계1·2는 전선(인증 공필)이므로 "
+    "일반프로그램 과목 그룹으로 넣지 않음."
 )
 
 
@@ -64,43 +59,31 @@ def _attach_parent(category, parent):
     category.parent_category_id = parent.category_id
 
 
-def _ensure_group(session, requirement, code, label, course_ids, source_id):
-    group = ensure_record(
-        session,
-        CourseGroupRequirement,
-        {"requirement_id": requirement.requirement_id, "group_code": code},
-        {"name": label, "min_courses": 1, "source_id": source_id},
-    )
-    for course_id in course_ids:
-        ensure_record(
-            session,
-            CourseGroupRequirementCourse,
-            {"group_id": group.group_id, "course_id": course_id},
-            {},
+def _record_general_capstone_basis(session, requirement, bylaw):
+    """일반프로그램의 캡스톤설계 심사 근거만 기록한다. 과목 그룹은 만들지 않는다.
+
+    이전 시드가 만든 일반 캡스톤 그룹이 남아 있으면 지우지 않고 중단한다.
+    """
+    leftover = session.execute(
+        select(CourseGroupRequirement).filter_by(
+            requirement_id=requirement.requirement_id, group_code="required_capstone"
         )
-    return group
-
-
-def _seed_general_capstone(session, requirement, courses, bylaw):
+    ).scalar_one_or_none()
+    if leftover is not None:
+        raise ValueError(
+            f"General program has a capstone course group: {requirement.requirement_id}"
+        )
     ensure_record(
         session,
         RequirementSource,
         {"requirement_id": requirement.requirement_id, "source_id": bylaw.source_id},
         {
-            "locator": "제2장 일반 프로그램 제6조② / 제3조③",
+            "locator": BYLAW_LOCATOR,
             "review_status": "verified",
             "reviewer": BYLAW_REVIEWER,
             "reviewed_on": BYLAW_RETRIEVED_ON,
             "note": BYLAW_REVIEW_NOTE,
         },
-    )
-    return _ensure_group(
-        session,
-        requirement,
-        CAPSTONE_GROUP_CODE,
-        CAPSTONE_GROUP_NAME,
-        [courses[name].course_id for name in CAPSTONE_COURSES],
-        bylaw.source_id,
     )
 
 
@@ -113,7 +96,7 @@ def seed_verified_engineering_rules(session):
         session,
         SourceDocument,
         {"url": BYLAW_URL, "retrieved_on": BYLAW_RETRIEVED_ON},
-        {"title": "컴퓨터소프트웨어 프로그램 이수내규(2024.7.15 개정)", "note": BYLAW_NOTE},
+        {"title": BYLAW_TITLE, "note": BYLAW_NOTE},
     )
     course_names = [name for _, name in REQUIRED_COURSES] + list(CAPSTONE_COURSES)
     courses = {
@@ -125,8 +108,10 @@ def seed_verified_engineering_rules(session):
     groups = []
     for requirement in requirements:
         if requirement.program == "general":
-            groups.append(_seed_general_capstone(session, requirement, courses, bylaw))
+            _record_general_capstone_basis(session, requirement, bylaw)
             continue
+        elif requirement.program != "engineering":
+            raise ValueError(f"Unexpected program: {requirement.program}")
         categories = {
             row.category: row
             for row in session.scalars(
@@ -149,13 +134,23 @@ def seed_verified_engineering_rules(session):
         _attach_parent(categories["engineering_design"], categories["engineering_subject"])
 
         group_specs = [(code, f"필수 이수: {name}", [name]) for code, name in REQUIRED_COURSES] + [
-            (CAPSTONE_GROUP_CODE, CAPSTONE_GROUP_NAME, list(CAPSTONE_COURSES))
+            ("required_capstone", "산학협력캡스톤설계1·2 중 1과목", list(CAPSTONE_COURSES))
         ]
         for code, label, names in group_specs:
-            course_ids = [courses[name].course_id for name in names]
-            groups.append(
-                _ensure_group(session, requirement, code, label, course_ids, source.source_id)
+            group = ensure_record(
+                session,
+                CourseGroupRequirement,
+                {"requirement_id": requirement.requirement_id, "group_code": code},
+                {"name": label, "min_courses": 1, "source_id": source.source_id},
             )
+            for name in names:
+                ensure_record(
+                    session,
+                    CourseGroupRequirementCourse,
+                    {"group_id": group.group_id, "course_id": courses[name].course_id},
+                    {},
+                )
+            groups.append(group)
     session.flush()
     return groups
 
@@ -172,8 +167,8 @@ def main():
             for group in groups
         )
         print(
-            f"Saved/reused {len(groups)} course groups ({links} group-course links) "
-            "and 4 credit subcategories."
+            f"Saved/reused {len(groups)} engineering groups ({links} group-course links), "
+            "4 credit subcategories and 2 general-program bylaw review records."
         )
     print("Course codes, credits, aliases and recognition lists are not inferred.")
 

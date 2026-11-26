@@ -207,7 +207,7 @@ F·NP 성적, 빈 성적, 재수강 행과 `(삭제)` 성적 행을 모두 보�
 | `total` | 총 졸업학점 |
 | `total`·`categories`의 숫자 | `required`·`earned`·`remaining`은 판정할 수 없으면 `null` |
 | `categories` | 영역별 학점 (기초교양·균형교양·전공필수·전공선택 등 — 실제 목록은 시드 데이터 기준). 같은 과목도 프로그램에 따라 전공 학점 인정 여부가 다를 수 있다. 영역 인정 과목 목록이 없으면 `status: "pending"`이고 `reason`에 보류 사유가 있다 |
-| `course_groups` | 그 프로그램에만 적용되는 "지정 과목 N개 중 M개" 요건. 형식은 `sub_major_required`와 같다. 없으면 빈 배열. 산학협력캡스톤설계1·2 중 1과목(`required_capstone`)은 공통 요건이 아니며 공학·일반 모두 각 프로그램의 `course_groups`에 들어간다(근거: [데이터 검증 기록](data-verification.md) 「캡스톤 적용 범위 재검토」) |
+| `course_groups` | 그 프로그램에만 적용되는 "지정 과목 N개 중 M개" 요건. 형식은 `sub_major_required`와 같다. 없으면 빈 배열. 산학협력캡스톤설계1·2 중 1과목(`required_capstone`)은 공학의 `course_groups`에만 있고, 일반의 캡스톤설계 심사는 공통 요건 `thesis`로 다룬다([데이터 검증 기록](data-verification.md) 「캡스톤 적용 범위 재검토」) |
 | `missing_required_courses` | 아직 듣지 않은 필수과목 |
 | `unmatched_courses` | 과목 데이터와 매칭하지 못한 과목. 사유로 "찾지 못함"과 "후보가 여러 개라 확정하지 못한 모호"를 구분한다. 과목·그룹 판정에서는 빠지지만 인정 성적이면 요청 `credits`로 총학점에는 포함한다. 프로그램 범위마다 결과가 다르면 같은 (`index`, 사유)는 한 번만 넣고, 일부 프로그램에서만 나온 항목은 사유 앞에 `(공학프로그램 기준)`처럼 붙인다. `index`는 요청 `courses` 배열의 위치(0부터). 검수 화면에서 안내용 |
 | `excluded_courses` | 성적(F·NP·빈 성적·`(삭제)` 등)·재수강 중복·완전히 같은 입력 행(`중복 입력`) 때문에 학점·이수에서 제외한 과목. 형식과 프로그램 기준 표기는 `unmatched_courses`와 같다 |
