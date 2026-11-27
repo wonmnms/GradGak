@@ -12,6 +12,8 @@ erDiagram
     course_group_requirements ||--o{ course_group_requirement_courses : maps
     courses ||--o{ course_group_requirement_courses : belongs
     courses ||--o{ course_aliases : named
+    courses ||--o{ course_numbers : recognized_by
+    source_documents ||--o{ course_numbers : supports
     graduation_requirements ||--o{ course_equivalences : scopes
     courses ||--o{ course_equivalences : completed_or_recognized
     graduation_requirements ||--o{ requirement_sources : evidenced
@@ -41,6 +43,7 @@ sub_major는 software/ai를 사용하여 기존 API 명세의 공통 값과 맞�
 - 잘못된 프로그램·세부전공 값은 ValueError로 알린다.
 - 공통 과목 그룹이 프로그램별로 다르면 LookupError로 알린다.
 - 미확인 학수번호는 null을 유지하며, 과목 후보를 임의로 확정하지 않는다.
+- 과목 매칭용 번호는 `course_numbers`([과목번호](#과목번호))에 있고, 이 조회 결과의 `course_code`와 무관하다.
 
 이 결과는 DB 조회 계약이다. API 응답 변환·학점 합산·이수과목 판정은 별도 백엔드 로직이다.
 총학점, 공학주제 및 설계는 중첩되는 요건이다. 영역별 요구량을 전부 합산하지 않는다.
@@ -59,3 +62,24 @@ parent_category_id는 수학·과학과 기초교양, 설계와 공학주제의 
 캡스톤 택1 그룹은 공학프로그램 졸업요건에만 연결한다. 일반프로그램의 캡스톤설계 심사는
 공통 비학점 요건 thesis로 다루며, 근거는 일반 졸업요건의 requirement_sources(이수내규)에 남긴다.
 상세는 [데이터 검증 기록](data-verification.md)의 「캡스톤 적용 범위 재검토」 절을 따른다.
+
+## 과목번호
+
+`course_numbers`는 과목이 인정하는 4자리 과목번호를 과목당 여러 개 저장한다. KLAS 학정번호
+`학과코드-난이도-과목번호-분반`(예: `I030-1-0019-02`)의 가운데 4자리이며 매칭 방식은 [과목 매칭](course-matching.md)을 따른다.
+
+| 컬럼 | 설명 |
+| --- | --- |
+| `course_number_id` | PK |
+| `course_id` | `courses` FK |
+| `course_number` | 영숫자 4자리(CHECK `^[0-9A-Za-z]{4}$`), 앞자리 0 보존, 대소문자 구분, 테이블 전체에서 UNIQUE |
+| `source_id` | `source_documents` FK, NOT NULL |
+| `review_status` | `pending`(기본)·`verified`·`needs_clarification`·`rejected` |
+| `reviewer`, `reviewed_on`, `note` | `verified`이면 확인자·확인일 필수(`requirement_sources`와 같은 규칙) |
+
+- 같은 번호가 두 과목에 걸리면 매칭이 모호해지므로 번호는 전체에서 UNIQUE다. pending·rejected 행도 번호를 점유하므로
+  충돌은 입력 시점에 드러난다. 실제 자료에서 한 번호가 정당하게 둘 이상의 과목에 걸리는 것이 확인되면 그때 제약을 바꾼다.
+- 카탈로그 스냅샷에는 `verified` 번호만 싣는다. `SourceDocument` 연결만으로 검증된 것으로 보지 않는다.
+- `courses.course_code`(과목당 1개, UNIQUE)는 매칭에 쓰지 않는다. 한 과목의 여러 번호와 학과코드·분반 차이를 담을 수 없고
+  검증 기록도 없다. 시드·조회 계약(`rule_repository`의 `course_code`)이 쓰고 있어 컬럼은 유지하며, 새 번호는 `course_numbers`에만 넣는다.
+- 학과코드로 인정 범위를 제한하지 않는다.

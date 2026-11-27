@@ -6,6 +6,7 @@ from app.models.course_alias import CourseAlias
 from app.models.course_equivalence import CourseEquivalence
 from app.models.course_group_requirement import CourseGroupRequirement
 from app.models.course_group_requirement_course import CourseGroupRequirementCourse
+from app.models.course_number import CourseNumber
 from app.models.graduation_requirement import GraduationRequirement
 from app.models.non_credit_requirement import NonCreditRequirement
 from app.models.requirement_category import RequirementCategory
@@ -23,6 +24,7 @@ __all__ = [
     "RequirementCategoryCourse",
     "CourseAlias",
     "CourseEquivalence",
+    "CourseNumber",
     "RequirementSource",
     "SourceDocument",
     "NonCreditRequirement",

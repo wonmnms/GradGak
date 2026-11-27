@@ -10,6 +10,9 @@ Verification rule: an alias or equivalence is included only when its
 ``source_id`` has a ``RequirementSource`` row with ``review_status='verified'``
 for this scope's requirement. A linked ``SourceDocument`` alone is not proof
 of human review, and a NULL ``source_id`` means unconfirmed evidence.
+
+Course numbers carry their own review record (``course_numbers.review_status``);
+only ``verified`` numbers of the courses in the snapshot are included.
 """
 
 from pydantic import ValidationError
@@ -22,6 +25,7 @@ from app.models import (
     CourseEquivalence,
     CourseGroupRequirement,
     CourseGroupRequirementCourse,
+    CourseNumber,
     GraduationRequirement,
     RequirementCategory,
     RequirementCategoryCourse,
@@ -105,6 +109,16 @@ class SqlCourseCatalogRepository:
         courses = self._session.scalars(
             select(Course).where(Course.course_id.in_(course_ids)).order_by(Course.course_id)
         ).all()
+        numbers_by_course: dict[int, list[str]] = {}
+        for number_course_id, number in self._session.execute(
+            select(CourseNumber.course_id, CourseNumber.course_number)
+            .where(
+                CourseNumber.course_id.in_(course_ids),
+                CourseNumber.review_status == VERIFIED,
+            )
+            .order_by(CourseNumber.course_number)
+        ):
+            numbers_by_course.setdefault(number_course_id, []).append(number)
         alias_rows = self._session.execute(
             select(CourseAlias, SourceDocument.url)
             .join(SourceDocument, SourceDocument.source_id == CourseAlias.source_id)
@@ -122,7 +136,7 @@ class SqlCourseCatalogRepository:
                 courses=[
                     CatalogCourse(
                         course_id=to_catalog_id(course.course_id),
-                        course_code=course.course_code,
+                        course_numbers=numbers_by_course.get(course.course_id, []),
                         name=course.name,
                     )
                     for course in courses
