@@ -170,25 +170,25 @@ def _add_number(
 
 def test_snapshot_carries_only_verified_course_numbers_of_scoped_courses(catalog_data):
     data = catalog_data
-    _add_number(data, "mapped", "1183", "verified")
-    _add_number(data, "mapped", "A001", "pending")
-    _add_number(data, "mapped", "A002", "needs_clarification")
-    _add_number(data, "mapped", "A003", "rejected")
-    _add_number(data, "grouped", "0019", "verified")
-    _add_number(data, "unmapped", "0020", "verified")
+    _add_number(data, "mapped", "Z901", "verified")
+    _add_number(data, "mapped", "Z902", "pending")
+    _add_number(data, "mapped", "Z903", "needs_clarification")
+    _add_number(data, "mapped", "Z904", "rejected")
+    _add_number(data, "grouped", "Z905", "verified")
+    _add_number(data, "unmapped", "Z906", "verified")
 
     snapshot = data.repo().load_snapshot(2024)
 
     by_id = {course.course_id: course for course in snapshot.courses}
-    assert by_id[data.cid("mapped")].course_numbers == ["1183"]
-    assert by_id[data.cid("grouped")].course_numbers == ["0019"]
+    assert by_id[data.cid("mapped")].course_numbers == ["Z901"]
+    assert by_id[data.cid("grouped")].course_numbers == ["Z905"]
     assert data.cid("unmapped") not in by_id
 
 
 def test_verified_number_matches_klas_course_code_with_other_department(catalog_data):
     data = catalog_data
-    _add_number(data, "mapped", "0019", "verified")
-    _add_number(data, "grouped", "0020", "pending")
+    _add_number(data, "mapped", "Z905", "verified")
+    _add_number(data, "grouped", "Z906", "pending")
 
     def transcript(code: str) -> TranscriptCourse:
         return TranscriptCourse(
@@ -203,7 +203,7 @@ def test_verified_number_matches_klas_course_code_with_other_department(catalog_
         )
 
     result = match_courses(
-        [transcript("I030-1-0019-02"), transcript("0000-1-0019-xx"), transcript("I030-1-0020-01")],
+        [transcript("I030-1-Z905-02"), transcript("0000-1-Z905-xx"), transcript("I030-1-Z906-01")],
         data.repo().load_snapshot(2024),
     )
 
@@ -315,7 +315,7 @@ def test_match_courses_end_to_end(catalog_data):
     data = catalog_data
     _add_alias(data, "mapped", "가상 이전이름", "verified")
     _add_equivalence(data, "engineering", "old", "mapped", "verified")
-    _add_number(data, "mapped", "0019", "verified", "verified")
+    _add_number(data, "mapped", "Z905", "verified", "verified")
 
     def transcript(name: str, code: str | None = None) -> TranscriptCourse:
         return TranscriptCourse(
@@ -333,7 +333,7 @@ def test_match_courses_end_to_end(catalog_data):
         transcript("가상 이전이름"),
         transcript("가상옛과목"),
         transcript("가상 무관과목"),
-        transcript("무관", "I030-1-0019-02"),
+        transcript("무관", "I030-1-Z905-02"),
     ]
     result = match_courses(inputs, data.repo().load_snapshot(2024))
 

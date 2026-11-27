@@ -93,7 +93,7 @@ F·NP·빈 성적·`(삭제)` 성적도 매칭 대상에서 제거하지 않는�
 - 관계 후보를 반환했다고 학점이 인정되거나 특정 졸업요건을 충족한 것은 아니다.
 
 카탈로그 Course ID 중복, 존재하지 않는 Course를 참조하는 별칭·관계, 자기 자신을 가리키는 대체 관계는 `CatalogValidationError`다.
-같은 학수번호·이름을 가진 서로 다른 ID는 데이터 오류로 무시하지 않고 매칭의 모호함으로 다룬다.
+같은 과목번호·이름을 가진 서로 다른 ID는 데이터 오류로 무시하지 않고 매칭의 모호함으로 다룬다.
 
 ## 호출 예시
 
@@ -105,7 +105,7 @@ from app.schemas.transcripts import Course
 from app.services.course_matching import match_courses
 
 catalog = CourseCatalogSnapshot(
-    courses=[CatalogCourse(course_id="fake-a", course_code="FAKE-101", name="가상새과목")],
+    courses=[CatalogCourse(course_id="fake-a", course_numbers=["Z101"], name="가상새과목")],
     aliases=[CourseAlias(name="가상옛과목", course_id="fake-a", source_document="synthetic://example")],
 )
 inputs = [Course(year=2031, term="1", name="가상옛과목", category="전선", credits=3,

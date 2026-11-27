@@ -84,7 +84,8 @@ def number_base(db):
     )
     db.add_all([*courses, source])
     db.flush()
-    return courses, source, token[:4]
+    # 실제 과목번호와 겹치지 않도록 영문 Z로 시작하는 가상 번호를 쓴다.
+    return courses, source, f"Z{token[:3]}"
 
 
 def _number(courses, source, number, index=0, **changes):
@@ -99,7 +100,7 @@ def _number(courses, source, number, index=0, **changes):
 
 def test_course_can_hold_several_numbers_and_defaults_to_pending(db, number_base):
     courses, source, token = number_base
-    rows = [_number(courses, source, f"{token[:3]}{i}") for i in range(2)]
+    rows = [_number(courses, source, f"Y{token[:2]}{i}") for i in range(2)]
     db.add_all(rows)
     db.flush()
     assert [row.review_status for row in rows] == ["pending", "pending"]
