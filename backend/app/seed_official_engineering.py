@@ -1,4 +1,13 @@
-"""원본 대조된 공학 필수 이수·캡스톤 택1·수학/과학 최소 학점만 적재한다."""
+"""원본 대조된 공학 필수 이수·캡스톤 택1·수학/과학 최소 학점을 적재한다.
+
+공학프로그램: 학부 졸업요건 안내의 공학 표 근거로 필수 이수 5과목, 캡스톤 택1,
+수학·기초과학 하위 학점과 설계의 부모 영역을 저장한다.
+일반프로그램: 과목 그룹을 만들지 않는다. 이수내규 제2장 제6조②의 캡스톤설계 심사 통과는
+공통 비학점 요건 졸업논문(작품) '가' 판정(thesis)으로 반영된 것으로 보고,
+그 근거만 이수내규의 requirement_sources 기록으로 남긴다.
+"""
+
+from datetime import date
 
 from sqlalchemy import select
 
@@ -7,6 +16,7 @@ from app.models import (
     CourseGroupRequirement,
     CourseGroupRequirementCourse,
     RequirementCategory,
+    RequirementSource,
     SourceDocument,
 )
 from app.seed_courses import ensure_course
@@ -26,6 +36,18 @@ REQUIRED_COURSES = (
 )
 CAPSTONE_COURSES = ("산학협력캡스톤설계1", "산학협력캡스톤설계2")
 
+BYLAW_URL = "https://cs.kw.ac.kr/engineering_certify/complete_bylaw.php"
+BYLAW_RETRIEVED_ON = date(2026, 11, 26)
+BYLAW_TITLE = "컴퓨터소프트웨어 프로그램 이수내규(2024.7.15 개정)"
+BYLAW_NOTE = "컴퓨터소프트웨어 프로그램 이수내규(2024.7.15 개정). 원용이 2026-11-26 조회·확인."
+BYLAW_LOCATOR = "제2장 일반 프로그램 제6조② / 제1장 제3조③"
+BYLAW_REVIEWER = "원용"
+BYLAW_REVIEW_NOTE = (
+    "제6조② 캡스톤설계 심사 통과는 공통 비학점 요건 졸업논문(작품) '가' 판정(thesis)으로 "
+    "반영. 일반 교과과정에서 산학협력캡스톤설계1·2는 전선(인증 공필)이므로 "
+    "일반프로그램 과목 그룹으로 넣지 않음."
+)
+
 
 def _attach_parent(category, parent):
     if category.requirement_id != parent.requirement_id:
@@ -37,11 +59,54 @@ def _attach_parent(category, parent):
     category.parent_category_id = parent.category_id
 
 
+def _reject_leftover_general_capstone(session, requirements):
+    """이전 시드가 만든 일반 캡스톤 그룹이 남아 있으면 지우지 않고 중단한다.
+
+    이전 시드의 이수내규 출처 note가 지금 값과 달라서, 출처를 기록하기 전에 검사해야
+    이 메시지로 멈춘다.
+    """
+    for requirement in requirements:
+        if requirement.program != "general":
+            continue
+        leftover = session.execute(
+            select(CourseGroupRequirement).filter_by(
+                requirement_id=requirement.requirement_id, group_code="required_capstone"
+            )
+        ).scalar_one_or_none()
+        if leftover is not None:
+            raise ValueError(
+                f"General program has a capstone course group: {requirement.requirement_id}"
+            )
+
+
+def _record_general_capstone_basis(session, requirement, bylaw):
+    """일반프로그램의 캡스톤설계 심사 근거만 기록한다. 과목 그룹은 만들지 않는다."""
+    ensure_record(
+        session,
+        RequirementSource,
+        {"requirement_id": requirement.requirement_id, "source_id": bylaw.source_id},
+        {
+            "locator": BYLAW_LOCATOR,
+            "review_status": "verified",
+            "reviewer": BYLAW_REVIEWER,
+            "reviewed_on": BYLAW_RETRIEVED_ON,
+            "note": BYLAW_REVIEW_NOTE,
+        },
+    )
+
+
 def seed_verified_engineering_rules(session):
     requirements = seed_verified_credit_rules(session)
     source = session.execute(
         select(SourceDocument).filter_by(url=SOURCE_URL, retrieved_on=REVIEW_DATE)
     ).scalar_one()
+    _reject_leftover_general_capstone(session, requirements)
+    bylaw = ensure_record(
+        session,
+        SourceDocument,
+        {"url": BYLAW_URL, "retrieved_on": BYLAW_RETRIEVED_ON},
+        {"title": BYLAW_TITLE, "note": BYLAW_NOTE},
+    )
     course_names = [name for _, name in REQUIRED_COURSES] + list(CAPSTONE_COURSES)
     courses = {
         name: ensure_course(
@@ -51,8 +116,11 @@ def seed_verified_engineering_rules(session):
     }
     groups = []
     for requirement in requirements:
-        if requirement.program != "engineering":
+        if requirement.program == "general":
+            _record_general_capstone_basis(session, requirement, bylaw)
             continue
+        elif requirement.program != "engineering":
+            raise ValueError(f"Unexpected program: {requirement.program}")
         categories = {
             row.category: row
             for row in session.scalars(
@@ -99,7 +167,18 @@ def seed_verified_engineering_rules(session):
 def main():
     with SessionLocal.begin() as session:
         groups = seed_verified_engineering_rules(session)
-        print(f"Saved/reused {len(groups)} engineering groups and 4 credit subcategories.")
+        links = sum(
+            len(
+                session.scalars(
+                    select(CourseGroupRequirementCourse).filter_by(group_id=group.group_id)
+                ).all()
+            )
+            for group in groups
+        )
+        print(
+            f"Saved/reused {len(groups)} engineering groups ({links} group-course links), "
+            "4 credit subcategories and 2 general-program bylaw review records."
+        )
     print("Course codes, credits, aliases and recognition lists are not inferred.")
 
 
