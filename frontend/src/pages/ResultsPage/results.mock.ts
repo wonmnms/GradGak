@@ -4,11 +4,67 @@ import type {
   MockScenario,
   Program,
   ProgramResult,
+  ResultStatus,
   SubMajor,
 } from './result.types';
 
+const PENDING_REASON = '영역 인정 과목 목록이 아직 없어 판정을 보류했습니다. (가상)';
+
+// 지금 서버(2024 규칙 데이터 미완성)와 같은 모양: 총학점은 판정하고 영역별 학점은 보류합니다.
+// 서버는 보류 영역에도 required(min_credits)는 보내고 earned·remaining만 null로 보냅니다.
+// 프로그램 status는 서버 규칙대로 unmet이 pending보다 우선입니다(총학점 부족이면 unmet).
+function makePendingProgram(program: Program, totalEarned: number): ProgramResult {
+  const totalMet = totalEarned >= 130;
+  return {
+    program,
+    status: totalMet ? 'pending' : 'unmet',
+    total: {
+      required: 130,
+      earned: totalEarned,
+      remaining: Math.max(0, 130 - totalEarned),
+      status: totalMet ? 'met' : 'unmet',
+    },
+    categories: [
+      {
+        id: 'major_required',
+        label: '전공필수',
+        required: 18,
+        earned: null,
+        remaining: null,
+        status: 'pending',
+        reason: PENDING_REASON,
+      },
+      {
+        id: 'other_credits',
+        label: '기타 학점(가상)',
+        required: 112,
+        earned: null,
+        remaining: null,
+        status: 'pending',
+        reason: PENDING_REASON,
+      },
+    ],
+    course_groups: [],
+    // 영역 과목 목록이 없어 빈 배열이지만, "미이수 필수과목 없음"이 확정된 것은 아닙니다.
+    missing_required_courses: [],
+  };
+}
+
+/**
+ * mock 전용: 가상 응답의 graduation_status를 만들 때만 씁니다.
+ * 실제 화면에서 쓰지 마세요. 최종 판정은 서버 응답값을 그대로 표시합니다.
+ * 명세의 결합 규칙: 하나라도 unmet이면 unmet, 아니고 하나라도 pending이면 pending
+ */
+export function combineStatus(statuses: ResultStatus[]): ResultStatus {
+  if (statuses.includes('unmet')) return 'unmet';
+  if (statuses.includes('pending')) return 'pending';
+  return 'met';
+}
+
 // 숫자·과목은 화면 개발용 가상 데이터입니다. 실제 규칙 계산은 서버가 담당합니다.
 function makeProgram(program: Program, scenario: MockScenario): ProgramResult {
+  if (scenario === 'pending') return makePendingProgram(program, 130);
+  if (scenario === 'pending-unmet') return makePendingProgram(program, 100);
   const allCreditsMet =
     ['met', 'review', 'thesis-unmet'].includes(scenario) ||
     (scenario === 'program-difference' && program === 'general');
@@ -43,7 +99,9 @@ function makeProgram(program: Program, scenario: MockScenario): ProgramResult {
         status: otherEarned === 112 ? 'met' : 'unmet',
       },
     ],
-    // 캡스톤 요건의 소속은 명세의 열린 질문입니다. 임의로 추가하지 않습니다.
+    // 산학협력캡스톤설계1·2 택1은 공학 course_groups에만 옵니다. 일반의 캡스톤설계 심사는
+    // 공통 요건 thesis(졸업논문 '가')로 표시됩니다(#49).
+    // 이 mock은 학점 표시 예시라 그룹을 넣지 않았고, 화면은 응답에 있는 그룹을 그대로 표시합니다.
     course_groups: [],
     missing_required_courses:
       scenario === 'unmet'
@@ -91,11 +149,10 @@ export function getMockResults(
   const programResults = programs.map((value) => makeProgram(value, scenario));
   return {
     // 가상 응답의 일관성만 유지하는 fixture 구성입니다. 실제 학사 판정 함수가 아닙니다.
-    graduation_status:
-      commonRequirements.every((item) => item.status === 'met') &&
-      programResults.every((item) => item.status === 'met')
-        ? 'met'
-        : 'unmet',
+    graduation_status: combineStatus([
+      ...commonRequirements.map((item) => item.status),
+      ...programResults.map((item) => item.status),
+    ]),
     common_requirements: commonRequirements,
     program_results: programResults,
     unmatched_courses:
@@ -108,5 +165,25 @@ export function getMockResults(
             },
           ]
         : [],
+    excluded_courses:
+      scenario === 'review'
+        ? [
+            {
+              index: 3,
+              name: '가상 재수강 전 과목',
+              reason: "성적 'F'은(는) 학점·이수로 인정하지 않았습니다.",
+            },
+          ]
+        : [],
+    pending_data:
+      scenario === 'pending' || scenario === 'pending-unmet'
+        ? ['program_credit_mappings_and_category_course_lists']
+        : [],
+    warnings:
+      scenario === 'pending' || scenario === 'pending-unmet'
+        ? ['규칙 데이터가 미완성이라 최종 충족으로 판정할 수 없습니다.']
+        : scenario === 'review'
+          ? ['(일반프로그램 기준) 가상 과목의 PDF 학점과 과목 데이터 학점이 다릅니다.']
+          : [],
   };
 }

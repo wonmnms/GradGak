@@ -16,7 +16,7 @@ export default function ResultsPage() {
   const [subMajor, setSubMajor] = useState<SubMajor | ''>(
     () => parseSubMajor(draft.subMajor) ?? '',
   );
-  const [scenario, setScenario] = useState<MockScenario>('unmet');
+  const [scenario, setScenario] = useState<MockScenario>('pending');
   const result = program && subMajor ? getMockResults(scenario, program, subMajor) : null;
   const editCourses = () => navigate('/review');
   return (
@@ -64,6 +64,8 @@ export default function ResultsPage() {
               value={scenario}
               onChange={(event) => setScenario(event.target.value as MockScenario)}
             >
+              <option value="pending">판정 보류 예시 (현재 서버 상태)</option>
+              <option value="pending-unmet">총학점 부족 · 영역 판정 보류</option>
               <option value="unmet">미충족 예시</option>
               <option value="met">충족 예시</option>
               <option value="review">미매칭 과목 확인 예시</option>

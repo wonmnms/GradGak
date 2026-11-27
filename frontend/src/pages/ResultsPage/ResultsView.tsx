@@ -1,7 +1,17 @@
 import Button from '../../components/Button/Button';
-import { creditProgress, getResultSummary, hasCourseCount } from './results.presentation';
+import {
+  creditProgress,
+  formatCredit,
+  getResultSummary,
+  hasCourseCount,
+  isMissingListUnsettled,
+  progressLabel,
+  remainingLabel,
+  statusLabels,
+} from './results.presentation';
 import type {
   CommonRequirement,
+  CourseNotice,
   EvaluationResult,
   Program,
   ProgramResult,
@@ -9,7 +19,6 @@ import type {
 } from './result.types';
 import styles from './ResultsPage.module.css';
 
-const statusLabels: Record<ResultStatus, string> = { met: '충족', unmet: '미충족' };
 const programTitles: Record<Program, string> = {
   engineering: '공학 프로그램',
   general: '일반 프로그램',
@@ -70,8 +79,8 @@ function ProgramCard({ result }: { result: ProgramResult }) {
         </span>
       </div>
       <p className={styles.total}>
-        <strong>{total.earned}</strong>
-        <span> / {total.required}학점</span>
+        <strong>{formatCredit(total.earned)}</strong>
+        <span> / {formatCredit(total.required)}학점</span>
       </p>
       <div
         className={styles.progress}
@@ -84,10 +93,9 @@ function ProgramCard({ result }: { result: ProgramResult }) {
         <span style={{ width: percent + '%' }} />
       </div>
       <div className={styles.progressLabels}>
-        <span>총학점 기준 {percent}% 이수</span>
+        <span>{progressLabel(total)}</span>
         <span>
-          {total.remaining > 0 ? total.remaining + '학점 부족' : '부족 학점 없음'} · 총학점{' '}
-          {statusLabels[total.status]}
+          {remainingLabel(total)} · 총학점 {statusLabels[total.status]}
         </span>
       </div>
       <table className={styles.creditTable}>
@@ -104,10 +112,15 @@ function ProgramCard({ result }: { result: ProgramResult }) {
         <tbody>
           {result.categories.map((item) => (
             <tr key={item.id}>
-              <th scope="row">{item.label}</th>
-              <td>{item.required}</td>
-              <td>{item.earned}</td>
-              <td className={styles.remaining}>{item.remaining}</td>
+              <th scope="row">
+                {item.label}
+                {item.status === 'pending' && item.reason && (
+                  <span className={styles.reason}>{item.reason}</span>
+                )}
+              </th>
+              <td>{formatCredit(item.required)}</td>
+              <td>{formatCredit(item.earned)}</td>
+              <td className={styles.remaining}>{formatCredit(item.remaining)}</td>
               <td>
                 <span className={styles[item.status]}>{statusLabels[item.status]}</span>
               </td>
@@ -115,6 +128,9 @@ function ProgramCard({ result }: { result: ProgramResult }) {
           ))}
         </tbody>
       </table>
+      {result.categories.some((item) => item.status === 'pending') && (
+        <p className={styles.hint}>— 표시는 규칙 데이터가 없어 아직 계산하지 않은 값입니다.</p>
+      )}
       {result.course_groups.length > 0 && (
         <>
           <h3 className={styles.subheading}>프로그램별 선택 과목 요건</h3>
@@ -124,6 +140,26 @@ function ProgramCard({ result }: { result: ProgramResult }) {
     </section>
   );
 }
+function NoticeList({ items }: { items: CourseNotice[] }) {
+  return (
+    <ul>
+      {items.map((course) => (
+        <li key={course.index + '-' + course.reason}>
+          <strong>{course.name}</strong>
+          <p>
+            검수 목록 {course.index + 1}번째 과목 · {course.reason}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+const summaryDescriptions: Record<ResultStatus, string> = {
+  met: '이 가상 응답은 공통 요건과 해당 프로그램 요건을 모두 충족합니다.',
+  unmet: '공통 요건 또는 프로그램 요건 중 아직 충족하지 못한 항목이 있습니다.',
+  pending:
+    '일부 요건의 규칙 데이터가 아직 없어 최종 충족 여부를 판정하지 않았습니다. 미충족 항목이 없더라도 졸업 가능으로 보지 마세요.',
+};
 export default function ResultsView({
   result,
   onEdit,
@@ -141,37 +177,47 @@ export default function ResultsView({
         </h2>
         {summary.needsReview ? (
           <p>
-            현재 응답 판정은 {statusLabels[result.graduation_status]}이지만, 판정에서 제외된 과목이
-            있습니다. 실제 졸업 가능 여부를 확정하는 안내가 아닙니다.
+            서버 판정은 '{statusLabels[result.graduation_status]}'이지만, 과목 데이터와 매칭되지
+            않아 과목·그룹 판정에서 빠진 과목이 있습니다(인정 성적이면 총학점에는 포함). 실제 졸업
+            가능 여부를 확정하는 안내가 아닙니다.
           </p>
         ) : (
-          <p>
-            {result.graduation_status === 'met'
-              ? '이 가상 응답은 공통 요건과 해당 프로그램 요건을 모두 충족합니다.'
-              : '공통 요건 또는 프로그램 요건 중 아직 충족하지 못한 항목이 있습니다.'}
-          </p>
+          <p>{summaryDescriptions[result.graduation_status]}</p>
         )}
       </section>
+      {result.warnings.length > 0 && (
+        <section className={styles.warningPanel} aria-labelledby="warnings-title">
+          <h2 id="warnings-title">판정 안내 {result.warnings.length}건</h2>
+          <ul>
+            {result.warnings.map((warning, index) => (
+              <li key={index + '-' + warning}>{warning}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       {result.unmatched_courses.length > 0 && (
         <section className={styles.warningPanel} aria-labelledby="unmatched-title">
           <h2 id="unmatched-title">확인이 필요한 과목 {result.unmatched_courses.length}개</h2>
           <p>
-            과목 데이터와 매칭되지 않아 판정에서 빠진 과목입니다. 검수 화면에서 과목명과 학수번호를
-            확인해 주세요.
+            과목 데이터와 매칭되지 않아 과목·그룹 판정에서 빠진 과목입니다. 인정 성적이면 총학점에는
+            포함됩니다. 검수 화면에서 과목명과 학수번호를 확인해 주세요.
           </p>
-          <ul>
-            {result.unmatched_courses.map((course) => (
-              <li key={course.index}>
-                <strong>{course.name}</strong>
-                <p>
-                  검수 목록 {course.index + 1}번째 과목 · {course.reason}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <NoticeList items={result.unmatched_courses} />
           <Button variant="secondary" onClick={onEdit}>
             검수 화면에서 확인
           </Button>
+        </section>
+      )}
+      {result.excluded_courses.length > 0 && (
+        <section className={styles.commonCard} aria-labelledby="excluded-title">
+          <h2 id="excluded-title">판정에서 제외한 과목 {result.excluded_courses.length}개</h2>
+          <p className={styles.hint}>
+            F·NP·빈 성적·(삭제)·재수강 중복·중복 입력 때문에 학점과 이수에서 빠진 과목입니다. 잘못
+            빠졌다면 검수 화면에서 성적과 재수강 표시를 확인해 주세요.
+          </p>
+          <div className={styles.noticeList}>
+            <NoticeList items={result.excluded_courses} />
+          </div>
         </section>
       )}
       <section className={styles.commonCard} aria-labelledby="common-title">
@@ -201,22 +247,38 @@ export default function ResultsView({
             <section key={program.program} aria-labelledby={program.program + '-missing'}>
               <h3 id={program.program + '-missing'}>{programTitles[program.program]}</h3>
               {program.missing_required_courses.length === 0 ? (
-                <p className={styles.empty}>이 예시에는 미이수 필수과목이 없습니다.</p>
+                isMissingListUnsettled(program, result) ? (
+                  <p className={styles.emptyPending}>
+                    응답에 미이수 필수과목이 없습니다. 일부 요건이 판정 보류 상태라 확정된 결과는
+                    아닙니다.
+                  </p>
+                ) : (
+                  <p className={styles.empty}>미이수 필수과목이 없습니다.</p>
+                )
               ) : (
-                <ul className={styles.courseList}>
-                  {program.missing_required_courses.map((course, index) => (
-                    <li key={(course.course_code ?? course.name) + '-' + index}>
-                      <div>
-                        <strong>{course.name}</strong>
-                        <p>
-                          {course.category}
-                          {course.course_code ? ' · ' + course.course_code : ''}
-                        </p>
-                      </div>
-                      <span>{course.credits}학점</span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {isMissingListUnsettled(program, result) && (
+                    <p className={styles.emptyPending}>
+                      일부 요건이 판정 보류 상태라 아래 목록이 미이수 필수과목 전체가 아닐 수
+                      있습니다.
+                    </p>
+                  )}
+                  <ul className={styles.courseList}>
+                    {program.missing_required_courses.map((course, index) => (
+                      <li key={(course.course_code ?? course.name) + '-' + index}>
+                        <div>
+                          <strong>{course.name}</strong>
+                          {(course.category || course.course_code) && (
+                            <p>
+                              {[course.category, course.course_code].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                        {course.credits !== null && <span>{course.credits}학점</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </section>
           ))}
