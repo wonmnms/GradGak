@@ -59,20 +59,28 @@ def _attach_parent(category, parent):
     category.parent_category_id = parent.category_id
 
 
-def _record_general_capstone_basis(session, requirement, bylaw):
-    """일반프로그램의 캡스톤설계 심사 근거만 기록한다. 과목 그룹은 만들지 않는다.
+def _reject_leftover_general_capstone(session, requirements):
+    """이전 시드가 만든 일반 캡스톤 그룹이 남아 있으면 지우지 않고 중단한다.
 
-    이전 시드가 만든 일반 캡스톤 그룹이 남아 있으면 지우지 않고 중단한다.
+    이전 시드의 이수내규 출처 note가 지금 값과 달라서, 출처를 기록하기 전에 검사해야
+    이 메시지로 멈춘다.
     """
-    leftover = session.execute(
-        select(CourseGroupRequirement).filter_by(
-            requirement_id=requirement.requirement_id, group_code="required_capstone"
-        )
-    ).scalar_one_or_none()
-    if leftover is not None:
-        raise ValueError(
-            f"General program has a capstone course group: {requirement.requirement_id}"
-        )
+    for requirement in requirements:
+        if requirement.program != "general":
+            continue
+        leftover = session.execute(
+            select(CourseGroupRequirement).filter_by(
+                requirement_id=requirement.requirement_id, group_code="required_capstone"
+            )
+        ).scalar_one_or_none()
+        if leftover is not None:
+            raise ValueError(
+                f"General program has a capstone course group: {requirement.requirement_id}"
+            )
+
+
+def _record_general_capstone_basis(session, requirement, bylaw):
+    """일반프로그램의 캡스톤설계 심사 근거만 기록한다. 과목 그룹은 만들지 않는다."""
     ensure_record(
         session,
         RequirementSource,
@@ -92,6 +100,7 @@ def seed_verified_engineering_rules(session):
     source = session.execute(
         select(SourceDocument).filter_by(url=SOURCE_URL, retrieved_on=REVIEW_DATE)
     ).scalar_one()
+    _reject_leftover_general_capstone(session, requirements)
     bylaw = ensure_record(
         session,
         SourceDocument,

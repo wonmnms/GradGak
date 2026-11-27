@@ -136,7 +136,13 @@ def test_conflicting_general_bylaw_review_stops_seed(engineering_db):
 
 
 def test_leftover_general_capstone_group_stops_seed(engineering_db):
-    # 이전 시드가 일반에 만든 캡스톤 그룹이 남아 있으면 지우지 않고 중단한다.
+    # 이전 시드(e1df4a5)가 일반에 만든 캡스톤 그룹이 남아 있으면 지우지 않고 중단한다.
+    # 이전 시드의 이수내규 출처 note도 지금과 달랐으므로, 그 상태에서도 출처 충돌보다
+    # 이 검사가 먼저 걸려야 한다.
+    bylaw = engineering_db.execute(
+        select(SourceDocument).filter_by(url=BYLAW_URL, retrieved_on=BYLAW_RETRIEVED_ON)
+    ).scalar_one()
+    bylaw.note = "원용이 2026-11-26 제2장 일반 프로그램 제6조②(...)를 직접 확인함."
     engineering_db.add(
         CourseGroupRequirement(
             requirement_id=_general_requirement(engineering_db).requirement_id,
