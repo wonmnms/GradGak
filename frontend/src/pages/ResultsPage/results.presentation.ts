@@ -38,12 +38,13 @@ export function progressLabel(total: CreditRequirement): string {
   return '총학점 기준 ' + creditProgress(total) + '% 이수';
 }
 /**
- * 빈 missing_required_courses를 "미이수 필수과목 없음"으로 단정하면 안 되는지.
+ * missing_required_courses를 확정된 전체 목록으로 보면 안 되는지.
  * 서버는 과목 그룹에서만 미이수 필수과목을 계산하고, 영역 과목 목록이 없으면 영역을 pending으로 둡니다.
- * 프로그램 status는 unmet이 우선이라 pending을 가릴 수 있어 영역·pending_data를 직접 봅니다.
+ * 프로그램 status는 unmet이 우선이라 pending을 가릴 수 있어 영역·pending_data·전체 판정을 직접 봅니다.
  */
 export function isMissingListUnsettled(program: ProgramResult, result: EvaluationResult): boolean {
   return (
+    result.graduation_status === 'pending' ||
     program.categories.some((category) => category.status === 'pending') ||
     result.pending_data.length > 0
   );

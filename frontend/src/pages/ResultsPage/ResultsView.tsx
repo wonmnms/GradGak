@@ -256,19 +256,29 @@ export default function ResultsView({
                   <p className={styles.empty}>미이수 필수과목이 없습니다.</p>
                 )
               ) : (
-                <ul className={styles.courseList}>
-                  {program.missing_required_courses.map((course, index) => (
-                    <li key={(course.course_code ?? course.name) + '-' + index}>
-                      <div>
-                        <strong>{course.name}</strong>
-                        {(course.category || course.course_code) && (
-                          <p>{[course.category, course.course_code].filter(Boolean).join(' · ')}</p>
-                        )}
-                      </div>
-                      {course.credits !== null && <span>{course.credits}학점</span>}
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {isMissingListUnsettled(program, result) && (
+                    <p className={styles.emptyPending}>
+                      일부 요건이 판정 보류 상태라 아래 목록이 미이수 필수과목 전체가 아닐 수
+                      있습니다.
+                    </p>
+                  )}
+                  <ul className={styles.courseList}>
+                    {program.missing_required_courses.map((course, index) => (
+                      <li key={(course.course_code ?? course.name) + '-' + index}>
+                        <div>
+                          <strong>{course.name}</strong>
+                          {(course.category || course.course_code) && (
+                            <p>
+                              {[course.category, course.course_code].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                        {course.credits !== null && <span>{course.credits}학점</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </section>
           ))}

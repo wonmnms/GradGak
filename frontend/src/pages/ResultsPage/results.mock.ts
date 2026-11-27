@@ -99,7 +99,8 @@ function makeProgram(program: Program, scenario: MockScenario): ProgramResult {
         status: otherEarned === 112 ? 'met' : 'unmet',
       },
     ],
-    // 산학협력캡스톤설계1·2 택1은 공학·일반 모두 서버 응답의 course_groups로 옵니다(#49).
+    // 산학협력캡스톤설계1·2 택1은 공학 course_groups에만 옵니다. 일반의 캡스톤설계 심사는
+    // 공통 요건 thesis(졸업논문 '가')로 표시됩니다(#49).
     // 이 mock은 학점 표시 예시라 그룹을 넣지 않았고, 화면은 응답에 있는 그룹을 그대로 표시합니다.
     course_groups: [],
     missing_required_courses:

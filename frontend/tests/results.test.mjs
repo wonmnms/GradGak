@@ -277,6 +277,8 @@ test('보류 영역도 pending_data도 없을 때만 미이수 목록을 확정�
   assert.equal(isMissingListUnsettled(met.program_results[0], met), false);
   const withPendingData = { ...met, pending_data: ['something'] };
   assert.equal(isMissingListUnsettled(met.program_results[0], withPendingData), true);
+  const withPendingStatus = { ...met, graduation_status: 'pending' };
+  assert.equal(isMissingListUnsettled(met.program_results[0], withPendingStatus), true);
 });
 test('총학점 요구·이수가 null이면 이수율을 0%가 아니라 —로 표시한다', () => {
   assert.equal(
