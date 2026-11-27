@@ -13,7 +13,7 @@ DB 테이블명·컬럼·식별자 타입을 확정하는 의미가 아니다.
 
 | DTO | 의미 |
 | --- | --- |
-| `CatalogCourse` | `course_id`, 선택 학수번호 `course_code`, 현재 과목명 `name`만 있는 정체성 자료 |
+| `CatalogCourse` | `course_id`, 검증된 인정 과목번호 목록 `course_numbers`(4자리 영숫자, 없으면 빈 목록), 현재 과목명 `name`만 있는 정체성 자료 |
 | `CourseAlias` | 확인된 과거 과목명 `name` → `course_id`와 `source_document` |
 | `CourseEquivalence` | 명시적인 `source_course_id` → `target_course_id` 관계와 `source_document` |
 | `CourseCatalogSnapshot` | 과목·별칭·대체/인정 관계를 한 번에 읽은 카탈로그 |
@@ -42,8 +42,14 @@ ORM의 `CourseEquivalence.requirement_id`는 DTO에 없으므로 어댑터에서
 
 ## 매칭 정책
 
-1. 학수번호가 있으면 앞뒤 공백만 제거해 정확히 비교한다. 대소문자·하이픈·선행 0을 바꾸지 않는다.
-2. 학수번호가 없을 때만 과목명과 별칭을 조회한다. 학수번호가 있지만 찾지 못한 경우 이름으로 몰래 대체하지 않는다.
+1. 입력 학정번호(`Course.course_code`)가 있으면 앞뒤 공백을 제거하고 `학과코드(4)-난이도(1)-과목번호(4)-분반(2)`
+   형식(각 칸 영숫자, 예: `I030-1-0019-02`)에서 가운데 4자리 과목번호를 뽑아 카탈로그의 인정 과목번호와 정확히 비교한다.
+   시간표는 같은 과목이 `0000-1-0019-xx`처럼 학과코드가 다를 수 있어 학과코드·난이도·분반은 비교하지 않는다.
+   대소문자·선행 0을 바꾸지 않는다(`0019`와 `19`는 다르다). 학정번호 전체는 입력 그대로 보존하며 결과의 `original`에 남는다.
+   한 과목에 인정 번호가 여러 개일 수 있다(예: 구·신 번호).
+2. 학정번호가 없을 때만 과목명과 별칭을 조회한다. 학정번호가 있지만 형식이 다르거나(4자리만 입력된 경우 포함)
+   번호를 찾지 못한 경우 이름으로 몰래 대체하지 않고, 형식이 다른 값을 과목번호로 추측하지도 않는다.
+   두 경우 모두 `unmatched`이며 `lookup`은 `course_number`, `reason`이 형식 불일치와 번호 미발견을 구분한다.
 3. 이름 비교는 Unicode NFC, 대소문자 접기(casefold), 모든 공백 제거만 적용한다. 구두점·숫자는 보존한다.
 4. 유사도·오타 교정·부분 문자열·로마 숫자 치환으로 추측하지 않는다.
 5. 현재 이름과 별칭은 같은 후보 집합에 넣는다. 서로 다른 Course ID가 둘 이상이면 모호함으로 반환한다.
@@ -52,6 +58,8 @@ ORM의 `CourseEquivalence.requirement_id`는 DTO에 없으므로 어댑터에서
 
 예를 들어 공백 차이는 같은 이름으로 조회할 수 있지만 `가상실습1`/`가상실습2`, `가상C`/`가상C++`는 구분한다.
 서로 다른 과목의 정규화된 이름이 같으면 첫 번째 행을 택하지 않고 모든 후보를 반환한다.
+같은 과목번호가 스냅샷의 둘 이상의 과목에 있어도 마찬가지로 `ambiguous`다. DB는 번호를 전체에서 유일하게 저장하므로 어댑터로는 발생하지 않는 방어 경로다.
+학과코드로 인정 범위를 제한하지는 않는다(별도 이슈).
 
 ## 결과와 중복
 
@@ -85,7 +93,7 @@ F·NP·빈 성적·`(삭제)` 성적도 매칭 대상에서 제거하지 않는�
 - 관계 후보를 반환했다고 학점이 인정되거나 특정 졸업요건을 충족한 것은 아니다.
 
 카탈로그 Course ID 중복, 존재하지 않는 Course를 참조하는 별칭·관계, 자기 자신을 가리키는 대체 관계는 `CatalogValidationError`다.
-같은 학수번호·이름을 가진 서로 다른 ID는 데이터 오류로 무시하지 않고 매칭의 모호함으로 다룬다.
+같은 과목번호·이름을 가진 서로 다른 ID는 데이터 오류로 무시하지 않고 매칭의 모호함으로 다룬다.
 
 ## 호출 예시
 
@@ -97,7 +105,7 @@ from app.schemas.transcripts import Course
 from app.services.course_matching import match_courses
 
 catalog = CourseCatalogSnapshot(
-    courses=[CatalogCourse(course_id="fake-a", course_code="FAKE-101", name="가상새과목")],
+    courses=[CatalogCourse(course_id="fake-a", course_numbers=["Z101"], name="가상새과목")],
     aliases=[CourseAlias(name="가상옛과목", course_id="fake-a", source_document="synthetic://example")],
 )
 inputs = [Course(year=2031, term="1", name="가상옛과목", category="전선", credits=3,
@@ -123,6 +131,7 @@ result = match_courses_from_repository(inputs, repo, admission_year=2024)
 - 인스턴스 하나는 `GraduationRequirement` 하나(입학년도·프로그램·세부전공)만 읽는다. 범위가 없으면 `LookupError`이며 다른 학번·프로그램으로 대체하지 않는다.
 - 공학 판정은 공학·일반 요건을 모두 보므로 `program="engineering"`과 `program="general"` 저장소를 각각 만들어 범위별로 매칭한다.
   DTO에 `requirement_id`가 없어 두 범위를 한 스냅샷에 합치면 한 프로그램에만 적용되는 대체 관계가 다른 프로그램 판정에 섞이기 때문이다.
+- 과목번호: `course_numbers` 테이블에서 `review_status='verified'`인 번호만 스냅샷 과목의 `course_numbers`에 싣는다. 번호는 과목 단위 사실이라 요건 범위가 아닌 번호 자체의 검증 기록(확인자·확인일)을 기준으로 하며, 스냅샷에 포함된 과목의 번호만 읽는다. pending·needs_clarification·rejected는 제외한다. 기존 `Course.course_code`는 매칭에 쓰지 않는다([DB 스키마](db-schema.md#과목번호)).
 - 과목: Course에는 입학년도가 없으므로 해당 요건의 영역(`requirement_category_courses`)·과목 그룹(`course_group_requirement_courses`)에 연결된 과목과, 포함된 대체 관계의 양쪽 과목만 넣는다.
 - 별칭·대체 관계: `source_id`가 해당 요건의 `RequirementSource`에서 `review_status='verified'`인 출처일 때만 넣는다.
   NULL 출처, 검증 기록이 없는 출처, pending·needs_clarification·rejected, 다른 요건 범위에서만 검증된 출처는 제외한다.
@@ -131,7 +140,7 @@ result = match_courses_from_repository(inputs, repo, admission_year=2024)
 
 ## 검증과 DB 연동 후속 작업
 
-공개 테스트는 가상 Course 데이터만 사용한다. 학수번호가 없는 KLAS 입력 조건을 재현한 다수 행 이름 매칭도 검증하며, 실제 이수내역이나 교육과정은 테스트에 넣지 않는다.
+공개 테스트는 가상 Course 데이터만 사용한다. 실제 과목번호 시드는 이 작업 범위가 아니며 별도 데이터 PR에서 원본 대조 후 넣는다. 학수번호가 없는 KLAS 입력 조건을 재현한 다수 행 이름 매칭도 검증하며, 실제 이수내역이나 교육과정은 테스트에 넣지 않는다.
 실제 KLAS 과목을 실제 교육과정과 매칭하는 통합 검증은 검증된 과목 데이터와 DB 어댑터를 연결한 후 별도로 필요하다.
 
 1. #11의 ORM과 DTO 사이 식별자 변환·별칭 필드·방향성·근거 표현을 DB 담당자와 합의

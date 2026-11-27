@@ -16,6 +16,7 @@ from app.models import (
     CourseEquivalence,
     CourseGroupRequirement,
     CourseGroupRequirementCourse,
+    CourseNumber,
     GraduationRequirement,
     RequirementCategory,
     RequirementCategoryCourse,
@@ -57,7 +58,7 @@ def catalog_data():
             # mapped: 공학 영역 과목, grouped: 공학 그룹 과목, old: 대체 관계의 이수 과목,
             # general_only: 일반 그룹에만 있는 과목, unmapped: 어떤 범위에도 없는 과목
             courses = {
-                "mapped": Course(course_code=f"T{token}-1", name="가상 새과목"),
+                "mapped": Course(course_code=None, name="가상 새과목"),
                 "grouped": Course(course_code=None, name="가상 그룹과목"),
                 "old": Course(course_code=None, name="가상 옛과목"),
                 "general_only": Course(course_code=None, name="가상 일반과목"),
@@ -151,6 +152,65 @@ def _add_equivalence(
     data.session.flush()
 
 
+def _add_number(
+    data: CatalogData, course: str, number: str, status: str, source: str = "verified"
+) -> None:
+    data.session.add(
+        CourseNumber(
+            course_id=data.courses[course].course_id,
+            course_number=number,
+            source_id=data.sources[source].source_id,
+            review_status=status,
+            reviewer="TEST_REVIEWER" if status == "verified" else None,
+            reviewed_on=date(2099, 1, 2) if status == "verified" else None,
+        )
+    )
+    data.session.flush()
+
+
+def test_snapshot_carries_only_verified_course_numbers_of_scoped_courses(catalog_data):
+    data = catalog_data
+    _add_number(data, "mapped", "Z901", "verified")
+    _add_number(data, "mapped", "Z902", "pending")
+    _add_number(data, "mapped", "Z903", "needs_clarification")
+    _add_number(data, "mapped", "Z904", "rejected")
+    _add_number(data, "grouped", "Z905", "verified")
+    _add_number(data, "unmapped", "Z906", "verified")
+
+    snapshot = data.repo().load_snapshot(2024)
+
+    by_id = {course.course_id: course for course in snapshot.courses}
+    assert by_id[data.cid("mapped")].course_numbers == ["Z901"]
+    assert by_id[data.cid("grouped")].course_numbers == ["Z905"]
+    assert data.cid("unmapped") not in by_id
+
+
+def test_verified_number_matches_klas_course_code_with_other_department(catalog_data):
+    data = catalog_data
+    _add_number(data, "mapped", "Z905", "verified")
+    _add_number(data, "grouped", "Z906", "pending")
+
+    def transcript(code: str) -> TranscriptCourse:
+        return TranscriptCourse(
+            year=2031,
+            term="1",
+            course_code=code,
+            name="무관",
+            category="전선",
+            credits=3,
+            grade="A0",
+            is_retake=False,
+        )
+
+    result = match_courses(
+        [transcript("I030-1-Z905-02"), transcript("0000-1-Z905-xx"), transcript("I030-1-Z906-01")],
+        data.repo().load_snapshot(2024),
+    )
+
+    assert [row.matched_course.course_id for row in result.matched] == [data.cid("mapped")] * 2
+    assert [row.index for row in result.unmatched] == [2]
+
+
 def test_converts_orm_rows_with_one_id_rule(catalog_data):
     data = catalog_data
     _add_alias(data, "mapped", "가상 이전이름", "verified")
@@ -160,8 +220,7 @@ def test_converts_orm_rows_with_one_id_rule(catalog_data):
 
     by_id = {course.course_id: course for course in snapshot.courses}
     assert set(by_id) == {data.cid("mapped"), data.cid("grouped"), data.cid("old")}
-    assert by_id[data.cid("mapped")].course_code == data.courses["mapped"].course_code
-    assert by_id[data.cid("grouped")].course_code is None
+    assert all(course.course_numbers == [] for course in by_id.values())
     assert by_id[data.cid("old")].name == "가상 옛과목"
     [alias] = snapshot.aliases
     assert alias.name == "가상 이전이름"
@@ -256,6 +315,7 @@ def test_match_courses_end_to_end(catalog_data):
     data = catalog_data
     _add_alias(data, "mapped", "가상 이전이름", "verified")
     _add_equivalence(data, "engineering", "old", "mapped", "verified")
+    _add_number(data, "mapped", "Z905", "verified", "verified")
 
     def transcript(name: str, code: str | None = None) -> TranscriptCourse:
         return TranscriptCourse(
@@ -273,7 +333,7 @@ def test_match_courses_end_to_end(catalog_data):
         transcript("가상 이전이름"),
         transcript("가상옛과목"),
         transcript("가상 무관과목"),
-        transcript("무관", data.courses["mapped"].course_code),
+        transcript("무관", "I030-1-Z905-02"),
     ]
     result = match_courses(inputs, data.repo().load_snapshot(2024))
 

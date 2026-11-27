@@ -4,6 +4,7 @@ import unicodedata
 from unittest.mock import Mock
 
 import pytest
+from pydantic import ValidationError
 
 from app.schemas.course_matching import (
     CatalogCourse,
@@ -37,8 +38,9 @@ def taken(name="가상기초", code=None, **changes):
     return Course(**values)
 
 
-def master(course_id="fake-a", code="FAKE-101", name="가상기초"):
-    return CatalogCourse(course_id=course_id, course_code=code, name=name)
+def master(course_id="fake-a", number="0101", name="가상기초"):
+    numbers = [] if number is None else [number]
+    return CatalogCourse(course_id=course_id, course_numbers=numbers, name=name)
 
 
 def alias(name, course_id="fake-a", source="synthetic://verified-alias"):
@@ -61,59 +63,112 @@ def candidate_ids(result):
     return [candidate.course.course_id for candidate in result.candidates]
 
 
-def test_code_wins_even_when_transcript_name_identifies_another_course():
-    catalog = snapshot(master(), master("fake-b", "FAKE-102", "가상심화"))
-    original = taken("가상심화", "FAKE-101")
+def test_course_number_wins_even_when_transcript_name_identifies_another_course():
+    catalog = snapshot(master(), master("fake-b", "0102", "가상심화"))
+    original = taken("가상심화", "I030-1-0101-02")
     result = match_courses([original], catalog)
     match = result.matched[0]
     assert match.matched_course.course_id == "fake-a"
-    assert match.lookup == "course_code"
-    assert match.candidates[0].matched_by == ["course_code"]
+    assert match.lookup == "course_number"
+    assert match.candidates[0].matched_by == ["course_number"]
     assert match.original.model_dump() == original.model_dump()
+    assert original.course_code == "I030-1-0101-02"
     assert result.unmatched == result.ambiguous == []
 
 
-def test_unknown_supplied_code_does_not_fall_back_to_current_name_or_alias():
-    catalog = snapshot(master(), aliases=[alias("가상옛이름")])
+@pytest.mark.parametrize(
+    "code",
+    ["I030-1-0019-02", "0000-1-0019-xx", "  I030-1-0019-02  ", "I050-2-0019-11"],
+)
+def test_department_difficulty_and_section_do_not_affect_course_number_matching(code):
+    catalog = snapshot(master(number="0019"))
+    result = match_courses([taken(code=code)], catalog)
+    assert result.matched[0].matched_course.course_id == "fake-a"
+    assert result.matched[0].original.course_code == code.strip()
+
+
+def test_one_course_can_be_recognised_by_several_numbers():
+    catalog = CourseCatalogSnapshot(
+        courses=[CatalogCourse(course_id="fake-a", course_numbers=["1183", "1186"], name="가상")]
+    )
     result = match_courses(
-        [taken("가상기초", "FAKE-999"), taken("가상옛이름", "FAKE-998")], catalog
+        [taken(code="I030-1-1183-01"), taken(code="I030-1-1186-01"), taken(code="I030-1-1184-01")],
+        catalog,
+    )
+    assert [item.index for item in result.matched] == [0, 1]
+    assert [item.index for item in result.unmatched] == [2]
+    assert [item.indices for item in result.repeated_matches] == [[0, 1]]
+
+
+def test_course_number_keeps_leading_zero_and_case():
+    catalog = snapshot(master(number="0019"), master("fake-b", "A0b1", "가상심화"))
+    result = match_courses(
+        [taken(code="I030-1-19-02"), taken(code="I030-1-a0B1-02"), taken(code="I030-1-A0b1-02")],
+        catalog,
     )
     assert [item.index for item in result.unmatched] == [0, 1]
-    assert all(item.lookup == "course_code" for item in result.unmatched)
+    assert result.matched[0].index == 2
+
+
+def test_unknown_course_number_does_not_fall_back_to_current_name_or_alias():
+    catalog = snapshot(master(), aliases=[alias("가상옛이름")])
+    result = match_courses(
+        [taken("가상기초", "I030-1-0999-01"), taken("가상옛이름", "I030-1-0998-01")], catalog
+    )
+    assert [item.index for item in result.unmatched] == [0, 1]
+    assert all(item.lookup == "course_number" for item in result.unmatched)
     assert all(item.candidates == [] and item.matched_course is None for item in result.unmatched)
-    assert all(item.reason for item in result.unmatched)
+    assert all("과목번호에 해당하는 과목을 찾지 못" in item.reason for item in result.unmatched)
     assert result.matched == []
 
 
 @pytest.mark.parametrize(
-    ("provided", "catalog_code"),
+    "provided",
     [
-        ("fake-101", "FAKE-101"),
-        ("FAKE-01", "FAKE-1"),
-        ("FAKE101", "FAKE-101"),
-        ("FAKE 101", "FAKE101"),
+        "0101",  # 4자리만: 과목번호로 추측하지 않는다
+        "I030-1-0101",
+        "I030-1-0101-02-03",
+        "I030-10-0101-02",
+        "I03-1-0101-02",
+        "I030 1 0101 02",
+        "I030_1_0101_02",
+        "I030-1-01012-02",
+        "FAKE-101",
     ],
 )
-def test_code_identity_does_not_discard_case_digits_or_punctuation(provided, catalog_code):
-    result = match_courses([taken(code=provided)], snapshot(master(code=catalog_code)))
-    assert len(result.unmatched) == 1
+def test_malformed_course_code_is_unmatched_without_guessing_or_name_fallback(provided):
+    # 이름은 카탈로그와 일치하지만, 형식이 다른 학정번호가 있으면 이름으로 대체하지 않는다.
+    result = match_courses([taken("가상기초", provided)], snapshot(master()))
+    match = result.unmatched[0]
+    assert match.lookup == "course_number"
+    assert "형식" in match.reason
+    assert match.original.course_code == provided
     assert result.matched == []
 
 
-def test_outer_code_whitespace_is_accepted():
-    result = match_courses([taken(code="  FAKE-101  ")], snapshot(master()))
-    assert result.matched[0].matched_course.course_id == "fake-a"
-
-
-def test_duplicate_catalog_codes_are_ambiguous_even_if_name_matches_only_one():
-    catalog = snapshot(master(), master("fake-b", "FAKE-101", "가상심화"))
-    result = match_courses([taken(code="FAKE-101")], catalog)
+def test_duplicate_catalog_numbers_are_ambiguous_even_if_name_matches_only_one():
+    catalog = snapshot(master(), master("fake-b", "0101", "가상심화"))
+    result = match_courses([taken("가상기초", "I030-1-0101-01")], catalog)
     ambiguous = result.ambiguous[0]
-    assert ambiguous.lookup == "course_code"
+    assert ambiguous.lookup == "course_number"
     assert ambiguous.matched_course is None
     assert candidate_ids(ambiguous) == ["fake-a", "fake-b"]
-    assert all(candidate.matched_by == ["course_code"] for candidate in ambiguous.candidates)
+    assert all(candidate.matched_by == ["course_number"] for candidate in ambiguous.candidates)
     assert result.matched == []
+
+
+def test_catalog_course_number_format_is_validated():
+    for bad in ("019", "00190", "I030-1", "0 19", ""):
+        with pytest.raises(ValidationError):
+            CatalogCourse(course_id="fake-a", course_numbers=[bad], name="가상")
+
+
+def test_course_without_numbers_is_matched_by_name_only_when_input_has_no_code():
+    catalog = snapshot(master(number=None))
+    assert match_courses([taken()], catalog).matched[0].lookup == "name"
+    assert match_courses([taken(code="I030-1-0101-01")], catalog).unmatched[0].lookup == (
+        "course_number"
+    )
 
 
 @pytest.mark.parametrize(
@@ -153,7 +208,7 @@ def test_name_matching_does_not_guess_similar_names_or_remove_meaningful_symbols
 
 
 def test_duplicate_normalized_current_names_are_ambiguous():
-    catalog = snapshot(master(name="가상 기초"), master("fake-b", "FAKE-102", "가상기초"))
+    catalog = snapshot(master(name="가상 기초"), master("fake-b", "0102", "가상기초"))
     result = match_courses([taken()], catalog)
     assert candidate_ids(result.ambiguous[0]) == ["fake-a", "fake-b"]
     assert result.ambiguous[0].matched_course is None
@@ -199,7 +254,7 @@ def test_current_and_alias_names_for_same_course_merge_evidence():
 def test_current_name_and_another_courses_alias_are_ambiguous():
     catalog = snapshot(
         master(),
-        master("fake-b", "FAKE-102", "가상심화"),
+        master("fake-b", "0102", "가상심화"),
         aliases=[alias("가상기초", "fake-b")],
     )
     result = match_courses([taken()], catalog)
@@ -214,7 +269,7 @@ def test_current_name_and_another_courses_alias_are_ambiguous():
 def test_one_alias_name_for_multiple_courses_is_ambiguous():
     catalog = snapshot(
         master(),
-        master("fake-b", "FAKE-102", "가상심화"),
+        master("fake-b", "0102", "가상심화"),
         aliases=[alias("가상공통옛이름"), alias("가상공통옛이름", "fake-b")],
     )
     result = match_courses([taken("가상공통옛이름")], catalog)
@@ -224,8 +279,8 @@ def test_one_alias_name_for_multiple_courses_is_ambiguous():
 def test_every_input_is_preserved_once_in_order_including_failures_and_ambiguity():
     catalog = snapshot(
         master(),
-        master("fake-b", "FAKE-102", "가상모호"),
-        master("fake-c", "FAKE-103", "가상모호"),
+        master("fake-b", "0102", "가상모호"),
+        master("fake-c", "0103", "가상모호"),
     )
     originals = [taken(), taken("가상미등록", grade=None), taken("가상모호", grade="F")]
     result = match_courses(originals, catalog)
@@ -240,7 +295,7 @@ def test_every_input_is_preserved_once_in_order_including_failures_and_ambiguity
 
 
 def test_empty_catalog_preserves_every_input_as_unmatched():
-    originals = [taken(), taken("가상다른과목", code="FAKE-999")]
+    originals = [taken(), taken("가상다른과목", code="I030-1-0999-01")]
     result = match_courses(originals, snapshot())
     assert len(result.unmatched) == 2
     assert result.matched == result.ambiguous == []
@@ -257,7 +312,7 @@ def test_empty_input_returns_empty_groups():
 def test_equivalence_candidates_do_not_replace_the_matched_source_course():
     catalog = snapshot(
         master(),
-        master("fake-b", "FAKE-102", "가상인정대상"),
+        master("fake-b", "0102", "가상인정대상"),
         equivalences=[equivalent()],
     )
     original = taken(credits=1.5, grade="F")
@@ -275,8 +330,8 @@ def test_equivalence_candidates_do_not_replace_the_matched_source_course():
 def test_equivalence_does_not_apply_in_reverse_or_transitively():
     catalog = snapshot(
         master(),
-        master("fake-b", "FAKE-102", "가상중간"),
-        master("fake-c", "FAKE-103", "가상최종"),
+        master("fake-b", "0102", "가상중간"),
+        master("fake-c", "0103", "가상최종"),
         equivalences=[equivalent(), equivalent("fake-b", "fake-c")],
     )
     result = match_courses([taken(), taken("가상최종")], catalog)
@@ -289,7 +344,7 @@ def test_equivalence_does_not_apply_in_reverse_or_transitively():
 def test_explicit_equivalence_cycle_is_finite_and_remains_one_hop():
     catalog = snapshot(
         master(),
-        master("fake-b", "FAKE-102", "가상연결"),
+        master("fake-b", "0102", "가상연결"),
         equivalences=[equivalent(), equivalent("fake-b", "fake-a")],
     )
     result = match_courses([taken(), taken("가상연결")], catalog)
@@ -304,7 +359,7 @@ def test_explicit_equivalence_cycle_is_finite_and_remains_one_hop():
 def test_duplicate_equivalence_links_merge_source_documents():
     catalog = snapshot(
         master(),
-        master("fake-b", "FAKE-102", "가상연결"),
+        master("fake-b", "0102", "가상연결"),
         equivalences=[
             equivalent(document="synthetic://source-b"),
             equivalent(document="synthetic://source-a"),
@@ -319,8 +374,8 @@ def test_duplicate_equivalence_links_merge_source_documents():
 def test_ambiguous_identity_does_not_choose_an_equivalence_target():
     catalog = snapshot(
         master(),
-        master("fake-b", "FAKE-102", "가상기초"),
-        master("fake-c", "FAKE-103", "가상연결"),
+        master("fake-b", "0102", "가상기초"),
+        master("fake-c", "0103", "가상연결"),
         equivalences=[equivalent("fake-a", "fake-c")],
     )
     result = match_courses([taken()], catalog)
@@ -335,7 +390,7 @@ def test_exact_duplicate_inputs_are_flagged_but_not_dropped_in_any_result_group(
     if status == "unmatched":
         catalog = snapshot()
     elif status == "ambiguous":
-        catalog = snapshot(master(), master("fake-b", "FAKE-102", "가상기초"))
+        catalog = snapshot(master(), master("fake-b", "0102", "가상기초"))
     original = taken()
     result = match_courses(
         [original, original.model_copy(deep=True), original.model_copy(deep=True)], catalog
@@ -371,7 +426,7 @@ def test_name_alias_and_code_matches_to_same_course_are_reported_as_repeated_ide
     originals = [
         taken(),
         taken("가상옛이름", term="2"),
-        taken("가상이름수정", "FAKE-101", year=2032),
+        taken("가상이름수정", "I030-1-0101-01", year=2032),
     ]
     result = match_courses(originals, catalog)
     assert len(result.matched) == 3
@@ -393,7 +448,7 @@ def test_matching_does_not_mutate_inputs_or_catalog_and_result_owns_input_copy()
 
 
 def test_ambiguity_candidate_order_does_not_depend_on_catalog_order():
-    records = [master("fake-b", "FAKE-102"), master("fake-a", "FAKE-101")]
+    records = [master("fake-b", "0102"), master("fake-a", "0101")]
     first = match_courses([taken()], snapshot(*records)).ambiguous[0]
     second = match_courses([taken()], snapshot(*reversed(records))).ambiguous[0]
     assert candidate_ids(first) == candidate_ids(second) == ["fake-a", "fake-b"]
@@ -410,7 +465,7 @@ def test_catalog_snapshots_are_scoped_per_call_without_a_global_matching_cache()
     "catalog",
     [
         snapshot(master(), master()),
-        snapshot(master(), master("fake-a", "FAKE-999", "가상충돌")),
+        snapshot(master(), master("fake-a", "0999", "가상충돌")),
         snapshot(master(), aliases=[alias("가상옛이름", "missing")]),
         snapshot(master(), equivalences=[equivalent("missing", "fake-a")]),
         snapshot(master(), equivalences=[equivalent("fake-a", "missing")]),
@@ -471,7 +526,7 @@ def test_45_fictional_courses_without_codes_match_current_names_and_verified_ali
     for number in range(1, 46):
         course_id = f"fake-course-{number:03d}"
         canonical_name = f"가상과목{number:03d}"
-        records.append(master(course_id, f"FAKE-{number:03d}", canonical_name))
+        records.append(master(course_id, f"{number:04d}", canonical_name))
         if number % 3 == 0:
             old_name = f"가상옛이름{number:03d}"
             aliases.append(alias(old_name, course_id, f"synthetic://verified-alias-{number}"))

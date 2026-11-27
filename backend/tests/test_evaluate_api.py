@@ -17,6 +17,7 @@ from app.models import (
     CourseEquivalence,
     CourseGroupRequirement,
     CourseGroupRequirementCourse,
+    CourseNumber,
     GraduationRequirement,
     NonCreditRequirement,
     RequirementCategory,
@@ -80,6 +81,17 @@ def client():
                 ]
             )
             session.flush()
+            # 가상 인정 과목번호: 학정번호 형식 입력으로 두 범위에서 같은 과목으로 매칭된다.
+            session.add(
+                CourseNumber(
+                    course_id=ai_courses[2].course_id,
+                    course_number="Z901",
+                    source_id=source.source_id,
+                    review_status="verified",
+                    reviewer="TEST_REVIEWER",
+                    reviewed_on=date(2099, 1, 2),
+                )
+            )
             engineering = requirements["engineering"]
             session.add(
                 RequirementSource(
@@ -418,3 +430,23 @@ def test_from_catalog_id_is_strict_inverse():
     for value in ("042", " 42", "+42", "4.2", "abc", ""):
         with pytest.raises(ValueError):
             from_catalog_id(value)
+
+
+def test_course_code_with_course_number_matches_in_both_scopes(client):
+    original = {**_course("이름은 달라도 무관"), "course_code": "I030-1-Z901-02"}
+    body = client.post("/evaluate", json=_request("engineering", [original])).json()
+    assert body["unmatched_courses"] == []
+    assert _common(body, "sub_major_required")["completed_count"] == 1
+    assert [row["total"]["earned"] for row in body["program_results"]] == [3, 3]
+    # 학과코드·분반이 달라도 같은 과목번호면 같은 과목이다.
+    other = {**original, "course_code": "0000-1-Z901-xx"}
+    general = client.post("/evaluate", json=_request("general", [other])).json()
+    assert general["unmatched_courses"] == []
+    assert _common(general, "sub_major_required")["completed_count"] == 1
+
+
+def test_malformed_course_code_is_unmatched_even_if_name_matches(client):
+    original = {**_course(AI_COURSES[2]), "course_code": "Z901"}
+    body = client.post("/evaluate", json=_request("general", [original])).json()
+    assert [row["index"] for row in body["unmatched_courses"]] == [0]
+    assert _common(body, "sub_major_required")["completed_count"] == 0

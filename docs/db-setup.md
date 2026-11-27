@@ -36,6 +36,7 @@ docker compose run --rm --no-deps -v "${PWD}/backend:/app" backend alembic upgra
 - course_group_requirements: 지정 과목 중 최소 이수 개수
 - course_group_requirement_courses: 과목 그룹과 교과목 연결
 - course_aliases: 과목명 별칭
+- course_numbers: 과목별 인정 과목번호(4자리)와 검증 기록
 - course_equivalences: 졸업요건 범위별 방향성 있는 대체 인정
 - source_documents: 자료 출처 및 조회일
 - requirement_sources: 졸업요건별 자료 근거와 검증 기록

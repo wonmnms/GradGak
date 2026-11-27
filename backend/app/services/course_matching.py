@@ -41,6 +41,21 @@ def normalize_course_name(name: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFC", name).casefold())
 
 
+# KLAS 학정번호: 학과코드(4)-난이도(1)-과목번호(4)-분반(2). 시간표는 학과코드가 다를 수 있어
+# (`0000-1-0019-xx`) 가운데 과목번호만 비교한다. 이 형식이 아니면 번호를 추측하지 않는다.
+_COURSE_CODE_PATTERN = re.compile(r"[0-9A-Za-z]{4}-[0-9A-Za-z]-([0-9A-Za-z]{4})-[0-9A-Za-z]{2}")
+
+
+def extract_course_number(course_code: str) -> str | None:
+    """Return the 4-character course number of a 학정번호, or None if the format differs.
+
+    Only outer whitespace is stripped. Case and leading zeros are kept, and a bare
+    4-character value is not guessed to be a course number.
+    """
+    found = _COURSE_CODE_PATTERN.fullmatch(course_code.strip())
+    return found.group(1) if found else None
+
+
 @dataclass
 class _Evidence:
     methods: set[MatchMethod] = field(default_factory=set)
@@ -50,7 +65,7 @@ class _Evidence:
 @dataclass
 class _CatalogIndex:
     courses: dict[str, CatalogCourse] = field(default_factory=dict)
-    codes: dict[str, set[str]] = field(default_factory=dict)
+    numbers: dict[str, set[str]] = field(default_factory=dict)
     names: dict[str, dict[str, _Evidence]] = field(default_factory=dict)
     equivalences: dict[str, dict[str, set[str]]] = field(default_factory=dict)
 
@@ -61,8 +76,8 @@ def _index_catalog(catalog: CourseCatalogSnapshot) -> _CatalogIndex:
         if course.course_id in index.courses:
             raise CatalogValidationError("과목 데이터에 중복된 과목 ID가 있습니다.")
         index.courses[course.course_id] = course
-        if course.course_code is not None:
-            index.codes.setdefault(course.course_code.strip(), set()).add(course.course_id)
+        for number in course.course_numbers:
+            index.numbers.setdefault(number, set()).add(course.course_id)
         evidence = index.names.setdefault(normalize_course_name(course.name), {}).setdefault(
             course.course_id, _Evidence()
         )
@@ -94,14 +109,15 @@ def _index_catalog(catalog: CourseCatalogSnapshot) -> _CatalogIndex:
 
 def _find_candidates(course: Course, index: _CatalogIndex) -> tuple[str, list[MatchCandidate]]:
     if course.course_code is not None:
-        # A present but unknown/ambiguous code must not silently fall back to a name.
+        # A present but unknown/malformed/ambiguous code must not silently fall back to a name.
+        number = extract_course_number(course.course_code)
         candidates = [
             MatchCandidate(
-                course=index.courses[course_id].model_copy(deep=True), matched_by=["course_code"]
+                course=index.courses[course_id].model_copy(deep=True), matched_by=["course_number"]
             )
-            for course_id in sorted(index.codes.get(course.course_code.strip(), set()))
+            for course_id in sorted(index.numbers.get(number, set()) if number else set())
         ]
-        return "course_code", candidates
+        return "course_number", candidates
 
     candidates = []
     evidence_by_id = index.names.get(normalize_course_name(course.name), {})
@@ -128,17 +144,25 @@ def _equivalence_candidates(course_id: str, index: _CatalogIndex) -> list[Equiva
     ]
 
 
-def _reason(lookup: str, candidates: list[MatchCandidate]) -> str:
+def _reason(lookup: str, candidates: list[MatchCandidate], course_code: str | None) -> str:
     if not candidates:
-        if lookup == "course_code":
-            return "학수번호에 해당하는 과목을 찾지 못했습니다. 입력과 과목 데이터를 확인해 주세요."
+        if lookup == "course_number":
+            if extract_course_number(course_code or "") is None:
+                return (
+                    "학정번호 형식(학과코드-난이도-과목번호-분반)이 아니어서 "
+                    "과목번호를 확인하지 못했습니다."
+                )
+            return (
+                "학정번호의 과목번호에 해당하는 과목을 찾지 못했습니다. "
+                "입력과 과목 데이터를 확인해 주세요."
+            )
         return "과목명 또는 확인된 별칭에 해당하는 과목을 찾지 못했습니다."
     if len(candidates) > 1:
-        if lookup == "course_code":
-            return "같은 학수번호에 해당하는 과목이 여러 개여서 확정하지 못했습니다."
+        if lookup == "course_number":
+            return "같은 과목번호에 해당하는 과목이 여러 개여서 확정하지 못했습니다."
         return "과목명 또는 별칭에 해당하는 과목이 여러 개여서 확정하지 못했습니다."
-    if lookup == "course_code":
-        return "학수번호로 과목을 찾았습니다."
+    if lookup == "course_number":
+        return "학정번호의 과목번호로 과목을 찾았습니다."
     if "name" in candidates[0].matched_by:
         return "과목명으로 과목을 찾았습니다."
     return "확인된 과목명 별칭으로 과목을 찾았습니다."
@@ -199,7 +223,7 @@ def match_courses(
                 lookup=lookup,
                 matched_course=selected,
                 candidates=candidates,
-                reason=_reason(lookup, candidates),
+                reason=_reason(lookup, candidates, course.course_code),
                 equivalence_candidates=equivalences,
                 duplicate_of=duplicate_of,
             )

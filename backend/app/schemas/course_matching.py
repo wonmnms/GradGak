@@ -12,7 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.transcripts import Course as TranscriptCourse
 
 NonEmptyText = Annotated[str, Field(min_length=1, strict=True)]
-MatchMethod = Literal["course_code", "name", "alias"]
+CourseNumberText = Annotated[str, Field(pattern=r"^[0-9A-Za-z]{4}$", strict=True)]
+MatchMethod = Literal["course_number", "name", "alias"]
 
 
 class _MatchingModel(BaseModel):
@@ -20,10 +21,14 @@ class _MatchingModel(BaseModel):
 
 
 class CatalogCourse(_MatchingModel):
-    """Only identity fields are required; course_id is an opaque adapter key."""
+    """Only identity fields are required; course_id is an opaque adapter key.
+
+    ``course_numbers`` are the verified 4-character numbers recognised for this course
+    (the middle segment of a KLAS 학정번호); unverified numbers must not be supplied.
+    """
 
     course_id: NonEmptyText
-    course_code: NonEmptyText | None = None
+    course_numbers: list[CourseNumberText] = Field(default_factory=list)
     name: NonEmptyText
 
 
@@ -63,7 +68,7 @@ class CourseMatch(_MatchingModel):
     index: int = Field(ge=0)
     original: TranscriptCourse
     status: Literal["matched", "unmatched", "ambiguous"]
-    lookup: Literal["course_code", "name"]
+    lookup: Literal["course_number", "name"]
     matched_course: CatalogCourse | None = None
     candidates: list[MatchCandidate] = Field(default_factory=list)
     reason: str
